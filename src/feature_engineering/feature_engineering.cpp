@@ -95,56 +95,77 @@ public:
     }
 };
 
-int main() {
-    // Example usage of FeatureEngineering class
-    double data_arr[] = {1.0, 2.0, 3.0, 4.0, 5.0};
-    std::vector<double> data(data_arr, data_arr + sizeof(data_arr) / sizeof(data_arr[0]));
 
-    int window_size = 3;
-    std::vector<double> moving_average = FeatureEngineering::calculate_moving_average(data, window_size);
-    std::cout << "Moving Average: ";
-    for (std::vector<double>::iterator it = moving_average.begin(); it != moving_average.end(); ++it) {
-        std::cout << *it << " ";
-    }
-    std::cout << std::endl;
-
-    double alpha = 0.5;
-    std::vector<double> exponential_moving_average = FeatureEngineering::calculate_exponential_moving_average(data, alpha);
-    std::cout << "Exponential Moving Average: ";
-    for (std::vector<double>::iterator it = exponential_moving_average.begin(); it != exponential_moving_average.end(); ++it) {
-        std::cout << *it << " ";
-    }
-    std::cout << std::endl;
-
-    std::vector<double> rsi = FeatureEngineering::calculate_relative_strength_index(data, window_size);
-    std::cout << "Relative Strength Index: ";
-    for (std::vector<double>::iterator it = rsi.begin(); it != rsi.end(); ++it) {
-        std::cout << *it << " ";
-    }
-    std::cout << std::endl;
-
-    std::unordered_map<std::string, double> feature_map1;
-    feature_map1["feature1"] = 1.0;
-    feature_map1["feature2"] = 2.0;
-
-    std::unordered_map<std::string, double> feature_map2;
-    feature_map2["feature1"] = 3.0;
-    feature_map2["feature2"] = 4.0;
-
-    std::unordered_map<std::string, double> feature_map3;
-    feature_map3["feature1"] = 5.0;
-    feature_map3["feature2"] = 6.0;
-
-    std::vector<std::unordered_map<std::string, double> > feature_data;
-    feature_data.push_back(feature_map1);
-    feature_data.push_back(feature_map2);
-    feature_data.push_back(feature_map3);
-
-    std::unordered_map<std::string, double> aggregated_features = FeatureEngineering::aggregate_features(feature_data);
-    std::cout << "Aggregated Features: " << std::endl;
-    for (std::unordered_map<std::string, double>::iterator it = aggregated_features.begin(); it != aggregated_features.end(); ++it) {
-        std::cout << it->first << ": " << it->second << std::endl;
+extern "C" {
+    void calculate_moving_average(double* data, int nrows, int ncols, int window_size, double* result) {
+        std::vector<double> data_vec(data, data + nrows * ncols);
+        std::vector<double> moving_average = FeatureEngineering::calculate_moving_average(data_vec, window_size);
+        std::copy(moving_average.begin(), moving_average.end(), result);
     }
 
-    return 0;
+    void calculate_exponential_moving_average(double* data, int nrows, int ncols, double alpha, double* result) {
+        std::vector<double> data_vec(data, data + nrows * ncols);
+        std::vector<double> ema = FeatureEngineering::calculate_exponential_moving_average(data_vec, alpha);
+        std::copy(ema.begin(), ema.end(), result);
+    }
+
+    void calculate_relative_strength_index(double* data, int nrows, int ncols, int window_size, double* result) {
+        std::vector<double> data_vec(data, data + nrows * ncols);
+        std::vector<double> rsi = FeatureEngineering::calculate_relative_strength_index(data_vec, window_size);
+        std::copy(rsi.begin(), rsi.end(), result);
+    }
 }
+
+// int main() {
+//     // Example usage of FeatureEngineering class
+//     double data_arr[] = {1.0, 2.0, 3.0, 4.0, 5.0};
+//     std::vector<double> data(data_arr, data_arr + sizeof(data_arr) / sizeof(data_arr[0]));
+
+//     int window_size = 3;
+//     std::vector<double> moving_average = FeatureEngineering::calculate_moving_average(data, window_size);
+//     std::cout << "Moving Average: ";
+//     for (std::vector<double>::iterator it = moving_average.begin(); it != moving_average.end(); ++it) {
+//         std::cout << *it << " ";
+//     }
+//     std::cout << std::endl;
+
+//     double alpha = 0.5;
+//     std::vector<double> exponential_moving_average = FeatureEngineering::calculate_exponential_moving_average(data, alpha);
+//     std::cout << "Exponential Moving Average: ";
+//     for (std::vector<double>::iterator it = exponential_moving_average.begin(); it != exponential_moving_average.end(); ++it) {
+//         std::cout << *it << " ";
+//     }
+//     std::cout << std::endl;
+
+//     std::vector<double> rsi = FeatureEngineering::calculate_relative_strength_index(data, window_size);
+//     std::cout << "Relative Strength Index: ";
+//     for (std::vector<double>::iterator it = rsi.begin(); it != rsi.end(); ++it) {
+//         std::cout << *it << " ";
+//     }
+//     std::cout << std::endl;
+
+//     std::unordered_map<std::string, double> feature_map1;
+//     feature_map1["feature1"] = 1.0;
+//     feature_map1["feature2"] = 2.0;
+
+//     std::unordered_map<std::string, double> feature_map2;
+//     feature_map2["feature1"] = 3.0;
+//     feature_map2["feature2"] = 4.0;
+
+//     std::unordered_map<std::string, double> feature_map3;
+//     feature_map3["feature1"] = 5.0;
+//     feature_map3["feature2"] = 6.0;
+
+//     std::vector<std::unordered_map<std::string, double> > feature_data;
+//     feature_data.push_back(feature_map1);
+//     feature_data.push_back(feature_map2);
+//     feature_data.push_back(feature_map3);
+
+//     std::unordered_map<std::string, double> aggregated_features = FeatureEngineering::aggregate_features(feature_data);
+//     std::cout << "Aggregated Features: " << std::endl;
+//     for (std::unordered_map<std::string, double>::iterator it = aggregated_features.begin(); it != aggregated_features.end(); ++it) {
+//         std::cout << it->first << ": " << it->second << std::endl;
+//     }
+
+//     return 0;
+// }

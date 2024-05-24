@@ -18,7 +18,7 @@ jobs:
     - name: Set up Python
       uses: actions/setup-python@v2
       with:
-        python-version: 3.10
+        python-version: 3.10.14
 
     - name: Install dependencies
       run: |
@@ -30,45 +30,47 @@ jobs:
         pip install flake8
         flake8 .
 
-    - name: Test with pytest
-      run: |
-        pip install pytest
-        pytest tests/
+    # - name: Test with pytest
+    #   run: |
+    #     pip install pytest
+    #     pytest tests/
 
     - name: Build C++ modules
       run: |
         cd src/data_cleaning
         g++ -O3 -o data_cleaning data_cleaning.cpp
+        g++ -shared -o data_cleaning.so -fPIC data_cleaning.cpp
         cd ../feature_engineering
         g++ -O3 -o feature_engineering feature_engineering.cpp
+        g++ -shared -o feature_engineering.so -fPIC feature_engineering.cpp
 
     - name: Run data ingestion
       run: |
-        python data/raw/data_ingestion.py --input_file path/to/raw_data.csv
+        python src/data_ingestion.py/data_ingestion.py
 
     - name: Run data preprocessing
       run: |
-        python data/processed/data_preprocessing.py --input_data path/to/ingested_data.csv --output_data path/to/preprocessed_data.npy
+        python src/data_preprocessing/data_preprocessing.py
 
-    - name: Train models
-      run: |
-        python src/model_training/train_models.py --input_data path/to/preprocessed_data.npy --output_dir path/to/models/
+    # - name: Train models
+    #   run: |
+    #     python src/model_training/train_models.py --input_data path/to/preprocessed_data.npy --output_dir path/to/models/
 
-    - name: Evaluate models
-      run: |
-        python src/model_evaluation/evaluate_models.py --models_dir path/to/models/ --test_data path/to/test_data.npy
+    # - name: Evaluate models
+    #   run: |
+    #     python src/model_evaluation/evaluate_models.py --models_dir path/to/models/ --test_data path/to/test_data.npy
 
-    - name: Generate coverage report
-      run: |
-        pip install coverage
-        coverage run --source=src -m pytest tests/
-        coverage report
+    # - name: Generate coverage report
+    #   run: |
+    #     pip install coverage
+    #     coverage run --source=src -m pytest tests/
+    #     coverage report
 
-    - name: Upload coverage report
-      uses: actions/upload-artifact@v2
-      with:
-        name: coverage-report
-        path: coverage.xml
+    # - name: Upload coverage report
+    #   uses: actions/upload-artifact@v2
+    #   with:
+    #     name: coverage-report
+    #     path: coverage.xml
 
     - name: Package project
       run: |

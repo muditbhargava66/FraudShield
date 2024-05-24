@@ -57,25 +57,39 @@ public:
     }
 };
 
-int main() {
-    // Example usage of DataCleaning class
-    double arr[] = {1.0, 2.0, 3.0, 4.0, 5.0, 10.0, 15.0, 20.0};
-    std::vector<double> data(arr, arr + sizeof(arr) / sizeof(arr[0]));
-
-    std::cout << "Original data: ";
-    for (std::vector<double>::const_iterator it = data.begin(); it != data.end(); ++it) {
-        std::cout << *it << " ";
+extern "C" {
+    void remove_missing_values(double* data, int nrows, int ncols) {
+        std::vector<double> data_vec(data, data + nrows * ncols);
+        DataCleaning::remove_missing_values(data_vec);
+        std::copy(data_vec.begin(), data_vec.end(), data);
     }
-    std::cout << std::endl;
 
-    DataCleaning::remove_missing_values(data);
-    DataCleaning::remove_outliers(data, 2.0);
-
-    std::cout << "Cleaned data: ";
-    for (std::vector<double>::const_iterator it = data.begin(); it != data.end(); ++it) {
-        std::cout << *it << " ";
+    void remove_outliers(double* data, int nrows, int ncols, double threshold) {
+        std::vector<double> data_vec(data, data + nrows * ncols);
+        DataCleaning::remove_outliers(data_vec, threshold);
+        std::copy(data_vec.begin(), data_vec.end(), data);
     }
-    std::cout << std::endl;
-
-    return 0;
 }
+
+// int main() {
+//     // Example usage of DataCleaning class
+//     double arr[] = {1.0, 2.0, 3.0, 4.0, 5.0, 10.0, 15.0, 20.0};
+//     std::vector<double> data(arr, arr + sizeof(arr) / sizeof(arr[0]));
+
+//     std::cout << "Original data: ";
+//     for (std::vector<double>::const_iterator it = data.begin(); it != data.end(); ++it) {
+//         std::cout << *it << " ";
+//     }
+//     std::cout << std::endl;
+
+//     DataCleaning::remove_missing_values(data);
+//     DataCleaning::remove_outliers(data, 2.0);
+
+//     std::cout << "Cleaned data: ";
+//     for (std::vector<double>::const_iterator it = data.begin(); it != data.end(); ++it) {
+//         std::cout << *it << " ";
+//     }
+//     std::cout << std::endl;
+
+//     return 0;
+// }

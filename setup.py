@@ -19,6 +19,7 @@ setup(
         'pybind11',
         'apache-airflow',
         'pytest',
+        'joblib',
     ],
     classifiers=[
         'Development Status :: 5 - Production/Stable',
