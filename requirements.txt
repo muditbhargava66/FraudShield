@@ -1,0 +1,12 @@
+# requirements.txt
+
+numpy
+pandas
+scikit-learn
+xgboost
+sqlalchemy
+psycopg2-binary
+pybind11
+apache-airflow
+pytest
+joblib

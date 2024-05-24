@@ -1,0 +1,100 @@
+# .github/workflows/ci.yml
+
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+
+    - name: Set up Python
+      uses: actions/setup-python@v2
+      with:
+        python-version: 3.10
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+
+    - name: Lint with flake8
+      run: |
+        pip install flake8
+        flake8 .
+
+    - name: Test with pytest
+      run: |
+        pip install pytest
+        pytest tests/
+
+    - name: Build C++ modules
+      run: |
+        cd src/data_cleaning
+        g++ -O3 -o data_cleaning data_cleaning.cpp
+        cd ../feature_engineering
+        g++ -O3 -o feature_engineering feature_engineering.cpp
+
+    - name: Run data ingestion
+      run: |
+        python data/raw/data_ingestion.py --input_file path/to/raw_data.csv
+
+    - name: Run data preprocessing
+      run: |
+        python data/processed/data_preprocessing.py --input_data path/to/ingested_data.csv --output_data path/to/preprocessed_data.npy
+
+    - name: Train models
+      run: |
+        python src/model_training/train_models.py --input_data path/to/preprocessed_data.npy --output_dir path/to/models/
+
+    - name: Evaluate models
+      run: |
+        python src/model_evaluation/evaluate_models.py --models_dir path/to/models/ --test_data path/to/test_data.npy
+
+    - name: Generate coverage report
+      run: |
+        pip install coverage
+        coverage run --source=src -m pytest tests/
+        coverage report
+
+    - name: Upload coverage report
+      uses: actions/upload-artifact@v2
+      with:
+        name: coverage-report
+        path: coverage.xml
+
+    - name: Package project
+      run: |
+        python setup.py sdist bdist_wheel
+
+    - name: Upload package artifacts
+      uses: actions/upload-artifact@v2
+      with:
+        name: dist
+        path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+
+    - name: Download package artifacts
+      uses: actions/download-artifact@v2
+      with:
+        name: dist
+        path: dist
+
+    - name: Deploy to production
+      run: |
+        # Add your deployment steps here
+        # For example, you can use a package repository or a deployment service
+        # to deploy the FraudShield package to your production environment
