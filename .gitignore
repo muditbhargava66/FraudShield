@@ -166,6 +166,7 @@ cython_debug/
 logs/
 airflow/
 conf/
+*.so
 
 # Vim
 *.swp
