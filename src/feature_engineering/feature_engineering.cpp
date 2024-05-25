@@ -95,7 +95,6 @@ public:
     }
 };
 
-
 extern "C" {
     void calculate_moving_average(double* data, int nrows, int ncols, int window_size, double* result) {
         std::vector<double> data_vec(data, data + nrows * ncols);

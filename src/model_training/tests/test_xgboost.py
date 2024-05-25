@@ -2,7 +2,7 @@
 
 import unittest
 import numpy as np
-from xgboost import XGBoostModel
+from model_training.xgboost_utils import XGBoostModel
 
 class TestXGBoostModel(unittest.TestCase):
     def setUp(self):

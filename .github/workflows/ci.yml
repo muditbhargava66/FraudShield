@@ -13,10 +13,10 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v4
 
     - name: Set up Python
-      uses: actions/setup-python@v2
+      uses: actions/setup-python@v4
       with:
         python-version: 3.10.14
 
@@ -25,72 +25,83 @@ jobs:
         python -m pip install --upgrade pip
         pip install -r requirements.txt
 
-    - name: Lint with flake8
-      run: |
-        pip install flake8
-        flake8 .
-
-    # - name: Test with pytest
-    #   run: |
-    #     pip install pytest
-    #     pytest tests/
-
-    - name: Build C++ modules
-      run: |
-        cd src/data_cleaning
-        g++ -O3 -o data_cleaning data_cleaning.cpp
-        g++ -shared -o data_cleaning.so -fPIC data_cleaning.cpp
-        cd ../feature_engineering
-        g++ -O3 -o feature_engineering feature_engineering.cpp
-        g++ -shared -o feature_engineering.so -fPIC feature_engineering.cpp
-
     - name: Run data ingestion
       run: |
-        python src/data_ingestion.py/data_ingestion.py
+        python src/data_ingestion/data_ingestion.py
 
     - name: Run data preprocessing
       run: |
         python src/data_preprocessing/data_preprocessing.py
+        # python src/data_preprocessing/data_preprocessing.py --input_data /path/to/ingested_data.csv --train_data /path/to/preprocessed_data.npy --test_data /path/to/test_data.npy
 
-    # - name: Train models
-    #   run: |
-    #     python src/model_training/train_models.py --input_data path/to/preprocessed_data.npy --output_dir path/to/models/
+    - name: Train models
+      run: |
+        python src/model_training/train_models.py
+        # python src/model_training/train_models.py --preprocessed_data /path/to/preprocessed_data.npy --output_dir /path/to/models/
 
-    # - name: Evaluate models
-    #   run: |
-    #     python src/model_evaluation/evaluate_models.py --models_dir path/to/models/ --test_data path/to/test_data.npy
-
-    # - name: Generate coverage report
-    #   run: |
-    #     pip install coverage
-    #     coverage run --source=src -m pytest tests/
-    #     coverage report
-
-    # - name: Upload coverage report
-    #   uses: actions/upload-artifact@v2
-    #   with:
-    #     name: coverage-report
-    #     path: coverage.xml
+    - name: Evaluate models
+      run: |
+        python src/model_evaluation/evaluation.py
+        # python src/model_evaluation/evaluation.py --model_path /path/to/trained_model.pkl --test_data /path/to/test_data.npy --output_path /path/to/evaluation_report.csv
 
     - name: Package project
       run: |
         python setup.py sdist bdist_wheel
 
     - name: Upload package artifacts
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@v4
       with:
         name: dist
         path: dist
 
-  deploy:
-    needs: build
+  lint:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: 3.10.14
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install flake8
+
+    - name: Lint with Flake8
+      run: |
+        flake8 .
+
+  prettier:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Node.js
+      uses: actions/setup-node@v2
+      with:
+        node-version: 14
+
+    - name: Install dependencies
+      run: |
+        npm install --global prettier
+
+    - name: Run Prettier
+      run: |
+        prettier --check .
+
+  deploy:
+    needs: [build, lint, prettier]
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
 
     - name: Download package artifacts
-      uses: actions/download-artifact@v2
+      uses: actions/download-artifact@v4
       with:
         name: dist
         path: dist

@@ -5,6 +5,8 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
+import argparse
+import joblib
 
 class ModelEvaluation:
     def __init__(self, y_true, y_pred, y_prob=None):
@@ -35,7 +37,11 @@ class ModelEvaluation:
         plt.title('Confusion Matrix')
 
         if save_path:
-            plt.savefig(save_path, dpi=300, bbox_inches='tight')
+            import os
+            plot_dir = 'data/plots/'
+            if not os.path.exists(plot_dir):
+                os.makedirs(plot_dir)
+            plt.savefig(os.path.join(plot_dir, 'confusion_matrix.png'), dpi=300, bbox_inches='tight')
         else:
             plt.show()
 
@@ -53,3 +59,40 @@ class ModelEvaluation:
             print(report)
 
         return report
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description='Evaluate trained models')
+    parser.add_argument('--model_path', type=str, default='/Users/mudit/Developer/FraudShield/data/models/xgboost.pkl', help='Path to the trained model file')
+    parser.add_argument('--test_data', type=str, default='/Users/mudit/Developer/FraudShield/data/models/test_data.npy', help='Path to the test data NumPy file')
+    parser.add_argument('--output_path', type=str, default='/Users/mudit/Developer/FraudShield/data/models/evaluation_report.csv', help='Path to save the evaluation report')
+    args = parser.parse_args()
+
+    try:
+        # Load the trained model
+        model = joblib.load(args.model_path)
+
+        # Load the test data
+        test_data = np.load(args.test_data)
+        X_test = test_data[:, :-1]
+        y_test = test_data[:, -1]
+
+        # Threshold the target variable if it is continuous
+        if np.issubdtype(y_test.dtype, np.floating):
+            threshold = 0.5
+            y_test = (y_test > threshold).astype(int)
+
+        # Predict using the trained model
+        y_pred = model.predict(X_test)
+        y_prob = model.predict_proba(X_test)[:, 1] if hasattr(model, 'predict_proba') else None
+
+        # Evaluate the model
+        evaluation = ModelEvaluation(y_test, y_pred, y_prob)
+        evaluation.generate_report(args.output_path)
+
+        # Plot confusion matrix
+        evaluation.plot_confusion_matrix(save_path='confusion_matrix.png')
+
+    except FileNotFoundError as e:
+        print(f"File not found: {str(e)}")
+    except Exception as e:
+        print(f"Error during model evaluation: {str(e)}")

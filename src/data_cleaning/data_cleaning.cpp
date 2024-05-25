@@ -17,7 +17,6 @@ public:
         if (data.empty()) {
             throw std::invalid_argument("Data vector is empty.");
         }
-
         double sum = std::accumulate(data.begin(), data.end(), 0.0);
         return sum / data.size();
     }
@@ -26,13 +25,11 @@ public:
         if (data.empty()) {
             throw std::invalid_argument("Data vector is empty.");
         }
-
         double sq_sum = 0.0;
         for (std::vector<double>::const_iterator it = data.begin(); it != data.end(); ++it) {
             double diff = *it - mean;
             sq_sum += diff * diff;
         }
-
         return std::sqrt(sq_sum / data.size());
     }
 
@@ -40,10 +37,8 @@ public:
         double mean;
         double stddev;
         double threshold;
-
         OutlierPredicate(double mean, double stddev, double threshold)
             : mean(mean), stddev(stddev), threshold(threshold) {}
-
         bool operator()(double value) const {
             return std::abs(value - mean) > threshold * stddev;
         }
@@ -52,7 +47,6 @@ public:
     static void remove_outliers(std::vector<double>& data, double threshold) {
         double mean = calculate_mean(data);
         double stddev = calculate_stddev(data, mean);
-
         data.erase(std::remove_if(data.begin(), data.end(), OutlierPredicate(mean, stddev, threshold)), data.end());
     }
 };
