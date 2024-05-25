@@ -2,8 +2,8 @@
 
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 [![Python Version](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
-[![Build Status](https://img.shields.io/travis/username/FraudShield.svg)](https://travis-ci.org/username/FraudShield)
-[![Coverage Status](https://img.shields.io/coveralls/github/username/FraudShield.svg)](https://coveralls.io/github/username/FraudShield)
+[![Build Status](https://img.shields.io/travis/muditbhargava66/FraudShield.svg)](https://travis-ci.org/muditbhargava66/FraudShield)
+[![Coverage Status](https://img.shields.io/coveralls/github/muditbhargava66/FraudShield.svg)](https://coveralls.io/github/muditbhargava66/FraudShield)
 
 FraudShield is an advanced anomaly detection pipeline designed to identify and prevent fraudulent activities within large datasets. By leveraging cutting-edge machine learning techniques, FraudShield ensures the integrity and security of financial transactions.
 
