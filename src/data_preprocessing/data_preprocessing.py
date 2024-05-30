@@ -24,47 +24,58 @@ def preprocess_data(data, test_size=0.2):
         tuple: Preprocessed train and test data as DataFrames.
     """
     try:
+        logger.info("Starting data preprocessing...")
+        
         # Validate input data
         if not isinstance(data, pd.DataFrame):
+            logger.error("Input data must be a pandas DataFrame")
             raise ValueError("Input data must be a pandas DataFrame")
         
         # Handle missing values
-        data.fillna(data.mean(), inplace=True)
+        logger.info("Handling missing values...")
+        numeric_features = data.select_dtypes(include=['int64', 'float64']).columns
+        data[numeric_features] = data[numeric_features].fillna(data[numeric_features].mean())
         
         # Separate numeric and categorical features
-        numeric_features = data.select_dtypes(include=['int64', 'float64']).columns.tolist()
+        logger.info("Separating numeric and categorical features...")
         categorical_features = data.select_dtypes(include=['object']).columns.tolist()
-
+        
         # Scale numeric features
+        logger.info("Scaling numeric features...")
         scaler = StandardScaler()
         data[numeric_features] = scaler.fit_transform(data[numeric_features])
 
         # One-hot encode categorical features
+        logger.info("One-hot encoding categorical features...")
         encoder = OneHotEncoder(handle_unknown='ignore')
         encoded_features = encoder.fit_transform(data[categorical_features]).toarray()
         encoded_columns = encoder.get_feature_names_out(categorical_features)
         encoded_df = pd.DataFrame(encoded_features, columns=encoded_columns)
 
         # Combine numeric and encoded categorical features
+        logger.info("Combining numeric and encoded categorical features...")
         preprocessed_data = pd.concat([data[numeric_features], encoded_df], axis=1)
         
         # Feature engineering
+        logger.info("Performing feature engineering...")
+        
         # Calculate moving average
+        logger.info("Calculating moving average...")
         preprocessed_data['moving_average'] = preprocessed_data[numeric_features].rolling(window=3).mean().mean(axis=1)
         
         # Calculate exponential moving average
+        logger.info("Calculating exponential moving average...")
         preprocessed_data['exponential_moving_average'] = preprocessed_data[numeric_features].ewm(alpha=0.5).mean().mean(axis=1)
         
-        # Select the relevant features and target variable
-        features = [col for col in preprocessed_data.columns if col != 'target']
-        target = 'target'
-        
-        preprocessed_data_with_target = preprocessed_data[features]
-        preprocessed_data_with_target[target] = data[target]
-        
         # Split the data into train and test sets
-        train_data, test_data = train_test_split(preprocessed_data_with_target, test_size=test_size, random_state=42)
+        logger.info(f"Splitting data into train and test sets with test size: {test_size}...")
+        train_data, test_data = train_test_split(preprocessed_data, test_size=test_size, random_state=42, stratify=data['fraud'])
         
+        # Add the target variable to the train and test data
+        train_data['fraud'] = data['fraud']
+        test_data['fraud'] = data['fraud']
+        
+        logger.info("Data preprocessing completed successfully!")
         return train_data, test_data
 
     except Exception as e:
@@ -79,15 +90,17 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     try:
+        logger.info(f"Reading input data from: {args.input_data}")
         ingested_data = pd.read_csv(args.input_data)
         train_data, test_data = preprocess_data(ingested_data)
         
-        # Save the preprocessed train and test data as NumPy files
+        logger.info(f"Saving preprocessed train data to: {args.train_data}")
         np.save(args.train_data, train_data.values)
+        
+        logger.info(f"Saving preprocessed test data to: {args.test_data}")
         np.save(args.test_data, test_data.values)
         
-        logger.info(f"Preprocessed train data saved to: {args.train_data}")
-        logger.info(f"Preprocessed test data saved to: {args.test_data}")
+        logger.info("Preprocessed data saved successfully!")
     except FileNotFoundError as e:
         logger.error(f"Input data file not found: {str(e)}")
     except Exception as e:

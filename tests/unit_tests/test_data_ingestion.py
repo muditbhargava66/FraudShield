@@ -15,8 +15,8 @@ def test_read_csv_valid_file(tmpdir):
     temp_file = tmpdir.join('temp_data.csv')
     pd.DataFrame(data).to_csv(temp_file, index=False)
 
-    # Initialize DataIngestion with the temporary directory
-    data_ingestion = DataIngestion(data_path=tmpdir)
+    # Initialize DataIngestion with the temporary directory and a dummy database connection string
+    data_ingestion = DataIngestion(str(tmpdir), 'sqlite:///:memory:')
 
     # Call the read_csv_file method
     result = data_ingestion.read_csv_file(temp_file.basename)
@@ -31,8 +31,8 @@ def test_read_csv_valid_file(tmpdir):
     assert list(result.columns) == ['column1', 'column2']
 
 def test_read_csv_file_not_found():
-    # Initialize DataIngestion with a non-existent directory
-    data_ingestion = DataIngestion(data_path='nonexistent_directory')
+    # Initialize DataIngestion with a non-existent directory and a dummy database connection string
+    data_ingestion = DataIngestion('nonexistent_directory', 'sqlite:///:memory:')
 
     # Call the read_csv_file method with a non-existent file
     with pytest.raises(FileNotFoundError):
@@ -43,8 +43,8 @@ def test_read_csv_empty_file(tmpdir):
     temp_file = tmpdir.join('empty_data.csv')
     pd.DataFrame().to_csv(temp_file, index=False)
 
-    # Initialize DataIngestion with the temporary directory
-    data_ingestion = DataIngestion(data_path=tmpdir)
+    # Initialize DataIngestion with the temporary directory and a dummy database connection string
+    data_ingestion = DataIngestion(str(tmpdir), 'sqlite:///:memory:')
 
     # Call the read_csv_file method with the empty file
     with pytest.raises(ValueError, match='Empty data file'):
