@@ -8,7 +8,7 @@ This document provides step-by-step instructions for setting up the FraudShield 
 
 Before proceeding with the setup, ensure that you have the following prerequisites installed:
 
-- Python 3.7 or higher
+- Python 3.10 or higher
 - C++ compiler (GCC or Clang)
 - SQL database (e.g., PostgreSQL, MySQL)
 - Apache Airflow
@@ -43,12 +43,16 @@ Before proceeding with the setup, ensure that you have the following prerequisit
 
 5. Install the required Python libraries:
    ```
+   uv sync
+   ```
+   Or with pip:
+   ```
    pip install -r requirements.txt
    ```
 
 6. Compile the C++ modules:
    ```
-   cd src/data_cleaning
+   cd src/fraudshield/data_cleaning
    g++ -O3 -o data_cleaning data_cleaning.cpp
    cd ../feature_engineering
    g++ -O3 -o feature_engineering feature_engineering.cpp
@@ -57,7 +61,16 @@ Before proceeding with the setup, ensure that you have the following prerequisit
 7. Set up the SQL database:
    - Create a new database for FraudShield.
    - Update the database connection details in the configuration file (`conf/database.ini`).
-   - Run the SQL scripts in the `src/sql` directory to create the required tables and indexes.
+   - The system uses SQLAlchemy's URL builder for secure connection string construction.
+   - Run the SQL scripts in the `src/fraudshield/sql` directory to create the required tables and indexes.
+   - For testing, set environment variables for database credentials:
+     ```bash
+     export TEST_DB_USER=your_user
+     export TEST_DB_PASSWORD=your_password
+     export TEST_DB_HOST=localhost
+     export TEST_DB_PORT=5432
+     export TEST_DB_NAME=test_db
+     ```
 
 8. Configure Apache Airflow:
    - Set up Airflow by following the official documentation: [Apache Airflow Documentation](https://airflow.apache.org/docs/apache-airflow/stable/start.html)
@@ -78,7 +91,7 @@ Before proceeding with the setup, ensure that you have the following prerequisit
    - `conf/airflow.cfg`: Configure Airflow settings, such as the executor and scheduler interval.
    - `conf/pipeline.yaml`: Specify the pipeline parameters, such as input data paths, model hyperparameters, and evaluation metrics.
 
-2. Modify the SQL queries in the `src/sql` directory, if necessary, to match your specific database schema and requirements.
+2. Modify the SQL queries in the `src/fraudshield/sql` directory, if necessary, to match your specific database schema and requirements.
 
 ## Running the Pipeline
 
@@ -104,9 +117,15 @@ Before proceeding with the setup, ensure that you have the following prerequisit
 
 - Verify that the necessary dependencies and libraries are installed correctly.
 
-- If you face any database-related issues, double-check the database connection details and ensure that the SQL scripts have been executed successfully.
+- If you face any database-related issues, double-check the database connection details and ensure that the SQL scripts have been executed successfully. The system now uses SQLAlchemy's URL builder for secure connections.
 
 - For Airflow-related problems, consult the Apache Airflow documentation and community forums for guidance and solutions.
+
+- If you see import errors for optional dependencies (like SnowflakeOperator), check the logs for specific error messages. The system will gracefully fall back to alternative implementations.
+
+- For C++ module compilation issues, ensure you have a compatible compiler (GCC 7+ or Clang 5+) and that all bounds checking and validation code compiles correctly.
+
+- If you encounter data leakage warnings or issues with feature engineering, verify that time-based splitting is enabled when using temporal features.
 
 ## Support and Feedback
 

@@ -29,17 +29,38 @@ Similar to Random Forest, the optimal values for these hyperparameters are deter
 ## Model Training and Evaluation
 The Random Forest and XGBoost models are trained using the engineered features and the labeled transaction data. The training process involves the following steps:
 
-1. Data Splitting: The labeled transaction data is split into training and validation sets using stratified sampling to ensure balanced class representation.
+1. Data Splitting: 
+   - When temporal features are present, time-based splitting is enforced to prevent temporal leakage
+   - Otherwise, stratified sampling is used to ensure balanced class representation
+   - Test size defaults to 20% of the data
 
-2. Model Initialization: The Random Forest and XGBoost models are initialized with their respective hyperparameters.
+2. Label Encoding:
+   - String labels are automatically detected and encoded using LabelEncoder
+   - The encoder is saved for consistent transformation of test data
+   - Validation ensures test data uses the same encoding scheme
 
-3. Model Training: The models are trained on the training set using the engineered features as input and the fraud labels as the target variable.
+3. Model Initialization: 
+   - Random Forest: Uses `class_weight='balanced_subsample'` by default, 300 estimators
+   - XGBoost: Automatically calculates `scale_pos_weight` based on class imbalance, uses 'aucpr' eval metric
 
-4. Model Evaluation: The trained models are evaluated on the validation set using various performance metrics such as accuracy, precision, recall, F1 score, and AUC.
+4. Model Training: 
+   - Models are trained on the training set using the engineered features as input
+   - Predictions are cached to avoid redundant computation during evaluation
 
-5. Hyperparameter Tuning: The hyperparameters of the models are fine-tuned using grid search and cross-validation to optimize their performance.
+5. Model Evaluation: 
+   - Trained models are evaluated using accuracy, precision, recall, F1 score, ROC AUC, and Average Precision
+   - All metrics use `zero_division=0` to handle edge cases gracefully
+   - Confusion matrices are generated and saved as visualizations
 
-6. Model Selection: The best-performing model is selected based on the evaluation metrics and is used for fraud detection in the production environment.
+6. Hyperparameter Tuning: 
+   - Hyperparameters can be provided as JSON strings or dictionaries
+   - Separate parameters for Random Forest ('rf') and XGBoost ('xgb')
+   - Grid search and cross-validation can be used for optimization
+
+7. Model Selection: 
+   - Both models are evaluated and their metrics are saved to `training_metrics.json`
+   - The best-performing model is selected based on the evaluation metrics
+   - Models are serialized using joblib for deployment
 
 ## Model Deployment
 The selected model (either Random Forest or XGBoost) is deployed in a production environment for real-time fraud detection. The deployment process involves the following steps:
