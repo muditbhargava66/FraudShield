@@ -9,7 +9,9 @@ aiosqlite==0.21.0
 alembic==1.18.4
     # via apache-airflow-core
 annotated-doc==0.0.4
-    # via typer
+    # via
+    #   fastapi
+    #   typer
 annotated-types==0.7.0
     # via pydantic
 anyio==4.12.1
@@ -17,7 +19,7 @@ anyio==4.12.1
     #   httpx
     #   starlette
     #   watchfiles
-apache-airflow==3.1.7
+apache-airflow==3.1.0
     # via
     #   fraudshield (pyproject.toml)
     #   apache-airflow-providers-common-compat
@@ -26,7 +28,7 @@ apache-airflow==3.1.7
     #   apache-airflow-providers-smtp
     #   apache-airflow-providers-snowflake
     #   apache-airflow-providers-standard
-apache-airflow-core==3.1.7
+apache-airflow-core==3.1.0
     # via
     #   apache-airflow
     #   apache-airflow-task-sdk
@@ -50,7 +52,7 @@ apache-airflow-providers-snowflake==6.9.1
     # via fraudshield (pyproject.toml)
 apache-airflow-providers-standard==1.11.1
     # via apache-airflow-core
-apache-airflow-task-sdk==1.1.7
+apache-airflow-task-sdk==1.1.0
     # via
     #   apache-airflow
     #   apache-airflow-core
@@ -71,10 +73,6 @@ attrs==25.4.0
     #   outcome
     #   referencing
     #   svcs
-babel==2.18.0
-    # via apache-airflow-task-sdk
-backports-strenum==1.3.1
-    # via cadwyn
 boto3==1.42.54
     # via snowflake-connector-python
 botocore==1.42.54
@@ -128,11 +126,7 @@ dnspython==2.8.0
     # via email-validator
 email-validator==2.3.0
     # via fastapi
-exceptiongroup==1.3.1
-    # via
-    #   anyio
-    #   pytest
-fastapi==0.117.1
+fastapi==0.129.0
     # via
     #   apache-airflow-core
     #   cadwyn
@@ -242,7 +236,7 @@ msgspec==0.20.0
     #   apache-airflow-core
     #   apache-airflow-task-sdk
 natsort==8.4.0
-    # via apache-airflow-core
+    # via apache-airflow
 numpy==2.2.6
     # via
     #   fraudshield (pyproject.toml)
@@ -333,8 +327,15 @@ pydantic==2.12.5
     #   apache-airflow-task-sdk
     #   cadwyn
     #   fastapi
+    #   pydantic-extra-types
+    #   pydantic-settings
+    #   retryhttp
 pydantic-core==2.41.5
     # via pydantic
+pydantic-extra-types==2.11.0
+    # via fastapi
+pydantic-settings==2.13.1
+    # via fastapi
 pygments==2.19.2
     # via
     #   apache-airflow-core
@@ -367,7 +368,9 @@ python-dateutil==2.9.0.post0
     #   pendulum
     #   snowflake-snowpark-python
 python-dotenv==1.2.1
-    # via uvicorn
+    # via
+    #   pydantic-settings
+    #   uvicorn
 python-multipart==0.0.22
     # via fastapi
 python-slugify==8.0.4
@@ -379,9 +382,10 @@ pytz==2025.2
     #   snowflake-connector-python
 pyyaml==6.0.3
     # via
-    #   libcst
     #   snowflake-snowpark-python
     #   uvicorn
+pyyaml-ft==8.0.0
+    # via libcst
 referencing==0.37.0
     # via
     #   jsonschema
@@ -389,8 +393,11 @@ referencing==0.37.0
 requests==2.32.5
     # via
     #   apache-airflow-core
+    #   apache-airflow-task-sdk
     #   opentelemetry-exporter-otlp-proto-http
     #   snowflake-connector-python
+retryhttp==1.4.0
+    # via apache-airflow-task-sdk
 rich==14.3.3
     # via
     #   apache-airflow-core
@@ -455,8 +462,9 @@ sqlalchemy-utils==0.42.1
     # via apache-airflow-core
 sqlparse==0.5.5
     # via apache-airflow-providers-common-sql
-starlette==0.48.0
+starlette==0.52.1
     # via
+    #   fraudshield (pyproject.toml)
     #   apache-airflow-core
     #   cadwyn
     #   fastapi
@@ -472,33 +480,26 @@ tenacity==9.1.4
     # via
     #   apache-airflow-core
     #   apache-airflow-task-sdk
+    #   retryhttp
 termcolor==3.3.0
     # via apache-airflow-core
 text-unidecode==1.3
     # via python-slugify
 threadpoolctl==3.6.0
     # via scikit-learn
-tomli==2.4.0
-    # via
-    #   alembic
-    #   fastapi-cli
-    #   pytest
 tomlkit==0.14.0
     # via snowflake-connector-python
 typer==0.24.0
     # via fastapi-cli
+types-requests==2.32.4.20260107
+    # via apache-airflow-task-sdk
 typing-extensions==4.15.0
     # via
-    #   a2wsgi
     #   aiosqlite
     #   alembic
-    #   anyio
     #   apache-airflow-core
-    #   asgiref
     #   cadwyn
     #   cron-descriptor
-    #   cryptography
-    #   exceptiongroup
     #   fastapi
     #   grpcio
     #   opentelemetry-api
@@ -508,20 +509,18 @@ typing-extensions==4.15.0
     #   opentelemetry-semantic-conventions
     #   pydantic
     #   pydantic-core
-    #   pyopenssl
-    #   referencing
+    #   pydantic-extra-types
     #   rich-toolkit
     #   snowflake-connector-python
     #   snowflake-snowpark-python
     #   sqlalchemy
-    #   starlette
-    #   structlog
     #   typing-inspection
-    #   uvicorn
 typing-inspection==0.4.2
     # via
     #   cadwyn
+    #   fastapi
     #   pydantic
+    #   pydantic-settings
 tzdata==2025.3
     # via
     #   pandas
@@ -536,11 +535,11 @@ urllib3==2.6.3
     # via
     #   botocore
     #   requests
+    #   types-requests
 uuid6==2025.0.1
     # via apache-airflow-core
 uvicorn==0.41.0
     # via
-    #   apache-airflow-core
     #   fastapi
     #   fastapi-cli
 uvloop==0.22.1

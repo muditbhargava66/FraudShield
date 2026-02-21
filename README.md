@@ -4,7 +4,8 @@
 
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Python Version](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
-[![CI](https://github.com/muditbhargava66/FraudShield/actions/workflows/ci.yml/badge.svg)](https://github.com/muditbhargava66/FraudShield/actions/workflows/ci.yml)
+[![CodeQL](https://github.com/muditbhargava66/FraudShield/actions/workflows/github-code-scanning/codeql/badge.svg?branch=main)](https://github.com/muditbhargava66/FraudShield/actions/workflows/github-code-scanning/codeql)
+[![CI](https://github.com/muditbhargava66/FraudShield/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/muditbhargava66/FraudShield/actions/workflows/ci.yml)
 [![Linting: Flake8 & Pylint](https://img.shields.io/badge/Linting-Flake8%20%7C%20Pylint-success)](#testing)
 [![Tested with Tox: 3.10 | 3.11 | 3.12 | 3.13](https://img.shields.io/badge/Tested%20with%20Tox-3.10%20%7C%203.11%20%7C%203.12%20%7C%203.13-blue)](#testing)
 
@@ -133,20 +134,6 @@ Run all unit tests in isolated environments for multiple Python versions:
 tox
 ```
 
-## Documentation
-
-Comprehensive documentation is available in the `docs/` directory:
-
-- **[Quick Start Guide](docs/quick_start.md)** - Fast track installation and execution
-- **[Setup Instructions](docs/setup_instructions.md)** - Detailed installation and configuration guide
-- **[Migration Guide](docs/migration_guide.md)** - Upgrading from previous versions
-- **[Security and Quality](docs/security_and_quality.md)** - Security improvements and data quality enhancements
-- **[Data Dictionary](docs/data_dictionary.md)** - Feature descriptions and data leakage prevention details
-- **[Model Architecture](docs/model_architecture.md)** - Model training and evaluation details
-- **[SQL Schema](docs/sql_schema.md)** - Database schema and secure connection practices
-- **[C++ Modules](docs/cpp_modules.md)** - C++ module documentation with safety improvements
-- **[Fixes Summary](FIXES_SUMMARY.md)** - Complete list of all bug fixes and improvements
-
 ### Notebooks
 
 - **[Updated Best Practices](notebooks/updated_best_practices.ipynb)** - Interactive guide to security and quality improvements
@@ -182,8 +169,6 @@ Comprehensive documentation is available in the `docs/` directory:
 -  **Redundancy Eliminated**: Enforced static memory allocations across C++ missing-value/outlier removal integrations.
 -  **Unified Testing**: Rewired the `Makefile` test targets combining unit tests, end-to-end integration tests, and C++ extensions natively through scoped `uv run` loops circumventing virtual environment bindings.
 -  **Tutorial Validation**: Re-generated Python notebook outputs fixing nested string execution states within `01_fraudshield_pipeline_tutorial.ipynb` and `exploratory_data_analysis.ipynb`.
-
-See [FIXES_SUMMARY.md](FIXES_SUMMARY.md) for complete details.
 
 ## Model Evaluation Results
 
