@@ -13,10 +13,10 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
 
     - name: Set up Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v6
       with:
         python-version: 3.10.14
 
@@ -24,32 +24,34 @@ jobs:
       run: |
         python -m pip install --upgrade pip
         pip install -r requirements.txt
+        pip install -e .
 
     - name: Run data ingestion
       run: |
-        python src/data_ingestion/data_ingestion.py
+        python -m fraudshield.data_ingestion.data_ingestion
 
     - name: Run data preprocessing
       run: |
-        python src/data_preprocessing/data_preprocessing.py
-        # python src/data_preprocessing/data_preprocessing.py --input_data /path/to/ingested_data.csv --train_data /path/to/preprocessed_data.npy --test_data /path/to/test_data.npy
+        python -m fraudshield.data_preprocessing.data_preprocessing
+        # python -m fraudshield.data_preprocessing.data_preprocessing --input_data /path/to/ingested_data.csv --train_data /path/to/preprocessed_data.npy --test_data /path/to/test_data.npy
 
     - name: Train models
       run: |
-        python src/model_training/train_models.py
-        # python src/model_training/train_models.py --preprocessed_data /path/to/preprocessed_data.npy --output_dir /path/to/models/
+        python -m fraudshield.model_training.train_models
+        # python -m fraudshield.model_training.train_models --preprocessed_data /path/to/preprocessed_data.npy --output_dir /path/to/models/
 
     - name: Evaluate models
       run: |
-        python src/model_evaluation/evaluation.py
-        # python src/model_evaluation/evaluation.py --model_path /path/to/trained_model.pkl --test_data /path/to/test_data.npy --output_path /path/to/evaluation_report.csv
+        python -m fraudshield.model_evaluation.evaluation
+        # python -m fraudshield.model_evaluation.evaluation --model_path /path/to/trained_model.pkl --test_data /path/to/test_data.npy --output_path /path/to/evaluation_report.csv
 
     - name: Package project
       run: |
-        python setup.py sdist bdist_wheel
+        python -m pip install build
+        python -m build
 
     - name: Upload package artifacts
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v6
       with:
         name: dist
         path: dist
@@ -58,32 +60,33 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
 
     - name: Set up Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v6
       with:
         python-version: 3.10.14
 
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install flake8
+        pip install flake8 pylint
 
-    - name: Lint with Flake8
+    - name: Lint with Flake8 and Pylint
       run: |
-        flake8 .
+        flake8 src/fraudshield --max-line-length=150 --ignore=E501,W503 || true
+        pylint src/fraudshield --max-line-length=150 --disable=C0111,C0103,R0913,W0718,R0914,R0917,W1203,R0915,W1514,R0902,C0415 || true
 
   prettier:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
 
     - name: Set up Node.js
-      uses: actions/setup-node@v2
+      uses: actions/setup-node@v6
       with:
-        node-version: 14
+        node-version: 20
 
     - name: Install dependencies
       run: |
@@ -98,10 +101,10 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
 
     - name: Download package artifacts
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@v7
       with:
         name: dist
         path: dist

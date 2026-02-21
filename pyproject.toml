@@ -1,0 +1,52 @@
+[build-system]
+requires = ["scikit-build-core>=0.4.3", "pybind11"]
+build-backend = "scikit_build_core.build"
+
+[project]
+name = "fraudshield"
+version = "2.0.0"
+description = "Anomaly Detection Pipeline for Fraud Detection"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [
+  { name = "Mudit Bhargava", email = "muditbhargava666@gmail.com" }
+]
+classifiers = [
+  "Development Status :: 5 - Production/Stable",
+  "Intended Audience :: Developers",
+  "Topic :: Software Development :: Build Tools",
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+]
+
+dependencies = [
+  "numpy",
+  "pandas",
+  "scikit-learn",
+  "xgboost",
+  "scipy",
+  "matplotlib",
+  "seaborn",
+  "sqlalchemy",
+  "psycopg2-binary",
+  "apache-airflow",
+  "apache-airflow-providers-snowflake",
+  "pytest",
+  "joblib",
+  "pybind11",
+]
+
+[project.scripts]
+fraudshield_ingest = "fraudshield.data_ingestion.data_ingestion:main"
+fraudshield_preprocess = "fraudshield.data_preprocessing.data_preprocessing:main"
+fraudshield_train = "fraudshield.model_training.train_models:main"
+fraudshield_evaluate = "fraudshield.model_evaluation.evaluation:main"
+
+[tool.scikit-build]
+wheel.packages = ["src/fraudshield"]
+cmake.version = ">=3.15"
+
+[tool.scikit-build.sdist]
+include = ["src/fraudshield/sql/*.sql"]
