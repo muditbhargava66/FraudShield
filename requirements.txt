@@ -98,11 +98,15 @@ charset-normalizer==3.4.5
 click==8.3.1
     # via uvicorn
 cloudpickle==3.1.1
-    # via snowflake-snowpark-python
+    # via
+    #   shap
+    #   snowflake-snowpark-python
 colorlog==6.10.1
     # via
     #   apache-airflow-core
     #   apache-airflow-task-sdk
+confluent-kafka==2.13.2
+    # via fraudshield (pyproject.toml)
 contourpy==1.3.2
     # via matplotlib
 cron-descriptor==2.0.6
@@ -198,6 +202,8 @@ libcst==1.8.6
     # via apache-airflow-core
 linkify-it-py==2.1.0
     # via apache-airflow-core
+llvmlite==0.46.0
+    # via numba
 lockfile==0.12.2
     # via
     #   apache-airflow-core
@@ -229,15 +235,21 @@ msgspec==0.20.0
     #   apache-airflow-task-sdk
 natsort==8.4.0
     # via apache-airflow-core
+neo4j==6.1.0
+    # via fraudshield (pyproject.toml)
+numba==0.64.0
+    # via shap
 numpy==2.2.6
     # via
     #   fraudshield (pyproject.toml)
     #   contourpy
     #   matplotlib
+    #   numba
     #   pandas
     #   scikit-learn
     #   scipy
     #   seaborn
+    #   shap
     #   xgboost
 opentelemetry-api==1.40.0
     # via
@@ -275,6 +287,7 @@ packaging==26.0
     #   apache-airflow-core
     #   matplotlib
     #   pytest
+    #   shap
     #   snowflake-connector-python
     #   wheel
 pandas==2.3.3
@@ -282,6 +295,7 @@ pandas==2.3.3
     #   fraudshield (pyproject.toml)
     #   apache-airflow-providers-snowflake
     #   seaborn
+    #   shap
 pathspec==1.0.4
     # via apache-airflow-core
 pendulum==3.2.0
@@ -315,6 +329,7 @@ pycparser==3.0
     # via cffi
 pydantic==2.12.5
     # via
+    #   fraudshield (pyproject.toml)
     #   apache-airflow-core
     #   apache-airflow-task-sdk
     #   cadwyn
@@ -357,6 +372,7 @@ python-slugify==8.0.4
 pytz==2026.1.post1
     # via
     #   croniter
+    #   neo4j
     #   pandas
     #   snowflake-connector-python
 pyyaml==6.0.3
@@ -385,11 +401,14 @@ rpds-py==0.30.0
 s3transfer==0.16.0
     # via boto3
 scikit-learn==1.7.2
-    # via fraudshield (pyproject.toml)
+    # via
+    #   fraudshield (pyproject.toml)
+    #   shap
 scipy==1.15.3
     # via
     #   fraudshield (pyproject.toml)
     #   scikit-learn
+    #   shap
     #   xgboost
 seaborn==0.13.2
     # via fraudshield (pyproject.toml)
@@ -399,10 +418,14 @@ setuptools==82.0.1
     # via
     #   apache-airflow-providers-snowflake
     #   snowflake-snowpark-python
+shap==0.49.1
+    # via fraudshield (pyproject.toml)
 six==1.17.0
     # via
     #   python-dateutil
     #   wirerope
+slicer==0.0.8
+    # via shap
 sniffio==1.3.1
     # via greenback
 snowflake-connector-python==4.3.0
@@ -461,6 +484,8 @@ tomli==2.4.0
     #   pytest
 tomlkit==0.14.0
     # via snowflake-connector-python
+tqdm==4.67.3
+    # via shap
 typing-extensions==4.15.0
     # via
     #   a2wsgi
@@ -485,6 +510,7 @@ typing-extensions==4.15.0
     #   pyjwt
     #   pyopenssl
     #   referencing
+    #   shap
     #   snowflake-connector-python
     #   snowflake-snowpark-python
     #   sqlalchemy
