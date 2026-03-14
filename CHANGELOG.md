@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.1.0] - 2026-03-14
+
+### Security & Compliance
+
+- **Dependency CVE Remediation**: Extracted raw `python -m pip install` commands natively out of `.github/workflows/ci.yml` and explicitly swapped for nested `uv pip install --system`. This enabled a highly targeted `override-dependencies` bounding matrix forcing strict compatibilities bridging `fastapi>=0.129.0` against `starlette>=0.49.1`, successfully remediating 14 `apache-airflow` CVE alerts by locking to `3.1.8`.
+- **CodeQL Remote Permissions**: Injected explicit `permissions: contents: read` layers executing across the CI pipeline to safeguard remote access token mapping flags from GitHub Actions static analysis errors.
+
+### Stability & Upgrades
+
+- **Global UV Dependency Modernization**: Conducted an aggressive `uv lock --upgrade` across `pyproject.toml`. Successfully mapped and locked 44 underlying matrix libraries (including `numpy==2.4.3`, `scipy==1.17.1`, `scikit-learn==1.7.2`, `fastapi==0.135.1`, `pandas==2.3.3`) ensuring they are aligned to their highest valid stability boundaries against Python 3.10 without incurring any backwards-breaking API syntax exceptions across unit tests or rendering scripts.
+- **CI Dependency Fix**: Fixed GitHub Actions build failures resulting from `pyyaml-ft==8.0.0` by manually re-compiling raw backwards compatible requirement logs using explicit `uv pip compile --python-version 3.10`.
+
+---
+
 ## [2.0.0] - 2026-02-21
 
 ### Security & Data Integrity
