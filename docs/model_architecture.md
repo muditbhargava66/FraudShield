@@ -1,6 +1,16 @@
 # Model Architecture
 
-FraudShield employs state-of-the-art machine learning models to detect and prevent fraudulent activities. The primary models used in the pipeline are Random Forest and XGBoost.
+FraudShield employs a state-of-the-art **hybrid streaming architecture** incorporating Machine Learning models (Random Forest, XGBoost), Graph Analytics (Neo4j), and Rule-based constraints to detect and prevent fraudulent activities natively in real-time.
+
+## Real-Time Architecture (Streaming & Graph Integration)se shifts the framework from a batch-oriented process to a high-frequency streaming pipeline:
+
+1. **Streaming Ingestion layer**: Transactions are consumed seamlessly at thousands of TPS via **Confluent Kafka/Redpanda** bypassing legacy DB ingestion limits. 
+2. **Neo4j Graph Tracking**: Distinct entities (Devices, IPs, Accounts) are tracked natively as interconnected nodes in a Graph Database to isolate ring-based anomalies automatically bridging transactions laterally.
+3. **Hybrid Risk Engine**: Final predictions traverse a `HybridRiskEngine` isolating compound scores blending ML outputs, Graph Network densities, and Static Rules to determine hard STOP/ALLOW actions securely.
+4. **SHAP Explainability**: Fraud probabilities are run through a TreeExplainer (`shap`) synchronously generating a sorted dictionary proving exactly which column parameters triggered the risk override.
+
+## Machine Learning Models (Random Forest & XGBoost)
+
 
 ## Random Forest
 Random Forest is an ensemble learning method that combines multiple decision trees to make predictions. It is known for its ability to handle high-dimensional data, capture complex interactions, and provide robust results.
@@ -71,8 +81,6 @@ The selected model (either Random Forest or XGBoost) is deployed in a production
 
 3. Integration: The API is integrated with the existing fraud detection system to enable seamless communication and data flow.
 
-4. Monitoring: The deployed model is continuously monitored for performance, drift, and anomalies to ensure its effectiveness and reliability.
-
-The FraudShield pipeline provides a robust and scalable architecture for training, evaluating, and deploying machine learning models for fraud detection. The combination of Random Forest and XGBoost models ensures high accuracy and adaptability to various types of fraudulent patterns.
+4. Monitoring: The standard batch ML pipeline has been extended to support real-time evaluation of transactions via Kafka, Neo4j, and SHAP. This represents the real-time execution capability of the FraudShield platform.ipeline provides a robust and scalable architecture for training, evaluating, and deploying machine learning models for fraud detection. The combination of Random Forest and XGBoost models ensures high accuracy and adaptability to various types of fraudulent patterns.
 
 ---

@@ -9,6 +9,7 @@ File: cpp_wrapper.py
 Author: Mudit Bhargava
 License: MIT
 """
+
 import logging
 
 import numpy as np
@@ -46,7 +47,7 @@ def calculate_moving_average(data: np.ndarray, window_size: int) -> np.ndarray:
     # Python fallback using pandas
     import pandas as pd
 
-    return pd.Series(data).rolling(window=window_size).mean().values[window_size - 1:]
+    return pd.Series(data).rolling(window=window_size).mean().values[window_size - 1 :]
 
 
 def calculate_exponential_moving_average(data: np.ndarray, alpha: float) -> np.ndarray:

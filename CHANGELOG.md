@@ -1,11 +1,17 @@
 # Changelog
 
-All notable changes to the FraudShield project will be documented in this file.
+All notable changes to FraudShield are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
----
+## [Unreleased]
+
+### Added
+- Centralized runtime logging with rotating file handlers, shared environment-driven settings, and deterministic entrypoint bootstrap.
+- A reproducible notebook generator at `scripts/build_notebooks.py` for rebuilding the tutorial, EDA, and experimentation notebooks from structured source.
+- Logging smoke coverage and notebook structure checks in the test suite.
+- Ruff configuration in `pyproject.toml` and a dedicated `ruff` environment in `tox.ini`.
 
 ## [2.2.0] - 2026-04-18
 
@@ -16,56 +22,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [2.1.0] - 2026-03-14
 
-### Security & Compliance
+### Changed
+- Rebuilt all three notebooks around the current runtime/config architecture so they demonstrate aligned ingestion, preprocessing, training, evaluation, and inference flows.
+- Simplified `.gitignore` to focus on generated artifacts, local secrets, notebook/editor state, and build outputs.
+- Hardened `CMakeLists.txt` with an explicit C++ standard, reusable extension helper, and consistent compiler warnings.
 
-- **Dependency CVE Remediation**: Extracted raw `python -m pip install` commands natively out of `.github/workflows/ci.yml` and explicitly swapped for nested `uv pip install --system`. This enabled a highly targeted `override-dependencies` bounding matrix forcing strict compatibilities bridging `fastapi>=0.129.0` against `starlette>=0.49.1`, successfully remediating 14 `apache-airflow` CVE alerts by locking to `3.1.8`.
-- **CodeQL Remote Permissions**: Injected explicit `permissions: contents: read` layers executing across the CI pipeline to safeguard remote access token mapping flags from GitHub Actions static analysis errors.
+### Fixed
+- Removed import-time `logging.basicConfig(...)` calls that caused handler duplication and order-dependent behavior.
+- Standardized CLI and service entrypoints so logs now land in a predictable per-component file under `logs/`.
 
-### Stability & Upgrades
+## [3.0.0] - 2026-03-18
 
-- **Global UV Dependency Modernization**: Conducted an aggressive `uv lock --upgrade` across `pyproject.toml`. Successfully mapped and locked 44 underlying matrix libraries (including `numpy==2.4.3`, `scipy==1.17.1`, `scikit-learn==1.7.2`, `fastapi==0.135.1`, `pandas==2.3.3`) ensuring they are aligned to their highest valid stability boundaries against Python 3.10 without incurring any backwards-breaking API syntax exceptions across unit tests or rendering scripts.
-- **CI Dependency Fix**: Fixed GitHub Actions build failures resulting from `pyyaml-ft==8.0.0` by manually re-compiling raw backwards compatible requirement logs using explicit `uv pip compile --python-version 3.10`.
+### Added
+- Shared runtime settings and resource factories for SQL, Kafka, Neo4j, Airflow, and model artifacts.
+- An inference service that reloads the trained model, preprocessor, and preprocessing metadata together.
+- Stateful streaming aggregates for rolling counts, sums, means, fraud rates, and user-level running statistics.
+- Idempotent Neo4j graph persistence with `MERGE`-based writes.
+- Startup smoke tests for the API, Airflow DAG import, realtime bootstrap, and inference artifact loading.
 
----
+### Changed
+- Airflow DAG loading and task wiring to better match the declared Airflow dependency set and defer variable resolution to execution time.
+- Realtime orchestration to use shared settings, reusable resources, and aligned inference artifacts instead of mock-only paths.
+- SQL configuration so ingestion, retrieval, and runtime services resolve database URLs from one source of truth.
+
+### Fixed
+- API model loading so the FastAPI surface can initialize correctly against saved model files.
+- Small-dataset preprocessing so stratified splits gracefully degrade instead of raising `ValueError`.
+- Package metadata drift by aligning the Python package version with the API version.
+- Optional dependency handling in tests so module imports do not fail before mocks and skips can apply.
 
 ## [2.0.0] - 2026-02-21
 
-### Security & Data Integrity
-
-- **SQL Injection Prevention**: Completely rewrote the connection architecture to construct generic `SQLAlchemy` URLs locally, protecting against SQL injection strings. Parameterized queries enforce uniform integrity across `pd.to_sql` inserts. 
-- **Time-Based Splitting**: Transformed the dataset partitioning to natively utilize time-based splits referencing `transaction_date` schemas instead of randomized selections, actively defeating temporal data leakage.
-- **Improved C++ Memory Handling**: Introduced bound arrays tracking alongside static null-checks within `feature_engineering.cpp` and `data_cleaning.cpp` bridging to eliminate catastrophic buffer overflows and segmentation faults triggered by malformed datasets.
-- **Information Error Disclosure Blocked**: Stripped out raw DB connection string dumps traversing into stack traces during exceptions or timeouts.
-
-### Architecture Modernization
-
-- **C++ Build System Migration**: Transitioned away from deprecated `setup.py` hooks exclusively into `pyproject.toml`, unlocking PEP-517 compilation pipelines utilizing dynamic `scikit-build-core` integrations.
-- **Localized DAG Database**: Decoupled `Airflow` from global installations by routing its core internal config (`airflow.db`) autonomously into an invisible `.airflow` directory at runtime. This successfully enables local regression checks independent of user-system variables.
-- **Docs Folder Overhaul**: Migrated disjointed tutorial tracking algorithms and implementation records from the root directly into unified `docs/` Markdown paths.
-
-### Performance
-
-- **Prediction Data Caching**: Refactored the internal model evaluation layer to parse raw arrays sequentially up to ~50% quicker. Memory evaluations are dynamically cached locally against precision matrix runs to bypass redundant `predict()` loops.
-- **Feature Computation Safety Loops**: Rewrote internal feature logic representing statistical aggregates (Exponential Moving Average / RSI) to rely on bounded `numpy.divide` evaluations, averting infinite zeros and float traps natively.
-
-### Code Simplifications (Code-Simplifier Adherence)
-
-- Systematically applied explicit return typing protocols across `data_preprocessing.py`, `pipeline_tasks.py`, `evaluation.py`, and `transaction_features.py`.
-- Stripped arbitrary try/catches encapsulating routing protocols inside `train_models.py` and decoupled irrelevant top-level variables.
-- Removed superfluous emojis globally across all notebook tutorials, readmes, and internal documentation artifacts.
-- Refactored `data_preprocessing.py` C++ module bindings adhering to `.agents/code-simplifier.md` by stripping redundant multi-layered pandas DataFrame operations in favor of native one-pass computations over raw NumPy buffers mapping static mean/std calculations.
-
-### Notebook & Testing Stability Checks
-
-- **Makefile Unified Testing:** Re-wired `make test` to execute all unit logic, integration end-to-ends, and the C++ module detection sequentially via `uv run` to ensure users running local global environments (like standard `pytest`) don't fail airflow bindings.
-- **Tox Isolation Environments:** Added strong `tox.ini` integration mapped to `pytest` asserting identical deployment artifacts natively across Python `3.10`, `3.11`, `3.12`, and `3.13` concurrently.
-- **Strict Linting Standards:** Scrubbed the entire `src/fraudshield` repository clean against aggressive `flake8` and `pylint` validations blocking unused imports, multi-line spacing errors, and undefined variables. Expanded native acceptable `--max-line-length` limits securely up to 150 characters uniformly across `.github/workflows/ci.yml`, `tox.ini`, and `Makefile` to prioritize syntax comprehension mappings.
-- **Notebook Variable Mappings:** Fixed critical string-to-float anomalies in `exploratory_data_analysis.ipynb` mapping standard `fraud` flags rather than dummy `target` placeholders. Ensured directory execution scopes point correctly to generated `synthetic_fraud_data.csv`. Generated and validated graphical outputs dynamically natively storing payload states inside `01_fraudshield_pipeline_tutorial.ipynb`.
-
----
-
-## [1.0.0] - Initial Release
-
-- Core machine learning pipeline architecture (Ingestion -> Preprocessing -> Model Training -> Evaluation).
-- Base Python fallback scripting logic and initial C++ performance nodes.
-- Baseline synthetic anomaly dataset mapping structures.
+### Added
+- Initial batch pipeline for ingestion, preprocessing, training, and evaluation.
+- Native C++ acceleration hooks for data cleaning and feature engineering.
+- Tox-based multi-version test execution and local build automation.

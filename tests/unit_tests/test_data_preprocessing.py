@@ -1,6 +1,7 @@
 # tests/unit_tests/test_data_preprocessing.py
 
 import pandas as pd
+
 from fraudshield.data_preprocessing.data_preprocessing import preprocess_data
 
 
@@ -28,3 +29,18 @@ def test_preprocess_data():
     # Ensure target values are preserved
     assert set(y_train).issubset({0, 1})
     assert set(y_test).issubset({0, 1})
+
+
+def test_preprocess_small_balanced_dataset_disables_stratification():
+    data = pd.DataFrame(
+        {
+            "numeric_feature": [1, 2, 3, 4],
+            "categorical_feature": ["A", "B", "A", "B"],
+            "fraud": [0, 1, 0, 1],
+        }
+    )
+
+    X_train, X_test, y_train, y_test, _, _ = preprocess_data(data, time_column="missing_col")
+
+    assert X_train.shape[0] + X_test.shape[0] == len(data)
+    assert len(y_train) + len(y_test) == len(data)

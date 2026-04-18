@@ -12,9 +12,7 @@ License: MIT
 
 import argparse
 import logging
-import sys
 from pathlib import Path
-
 from typing import Optional, Tuple
 
 import joblib
@@ -32,13 +30,8 @@ from sklearn.metrics import (
     roc_auc_score,
 )
 
-# Set up logging
-Path("logs").mkdir(exist_ok=True)
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(levelname)s - %(message)s",
-    handlers=[logging.FileHandler("logs/fraudshield_evaluate.log"), logging.StreamHandler(sys.stdout)],
-)
+from fraudshield.runtime.logging import configure_logging
+
 logger = logging.getLogger(__name__)
 
 
@@ -51,37 +44,19 @@ class ModelEvaluation:
     def calculate_metrics(
         self,
     ) -> Tuple[float, float, float, float, Optional[float], Optional[float]]:
-        accuracy = float(
-            accuracy_score(self.y_true, self.y_pred)
-        )
-        precision = float(
-            precision_score(self.y_true, self.y_pred, zero_division=0)
-        )
-        recall = float(
-            recall_score(self.y_true, self.y_pred, zero_division=0)
-        )
-        f1 = float(
-            f1_score(self.y_true, self.y_pred, zero_division=0)
-        )
-        auc = (
-            float(roc_auc_score(self.y_true, self.y_prob))
-            if self.y_prob is not None
-            else None
-        )
-        ap = (
-            float(average_precision_score(self.y_true, self.y_prob))
-            if self.y_prob is not None
-            else None
-        )
+        accuracy = float(accuracy_score(self.y_true, self.y_pred))
+        precision = float(precision_score(self.y_true, self.y_pred, zero_division=0))
+        recall = float(recall_score(self.y_true, self.y_pred, zero_division=0))
+        f1 = float(f1_score(self.y_true, self.y_pred, zero_division=0))
+        auc = float(roc_auc_score(self.y_true, self.y_prob)) if self.y_prob is not None else None
+        ap = float(average_precision_score(self.y_true, self.y_prob)) if self.y_prob is not None else None
         return accuracy, precision, recall, f1, auc, ap
 
     def plot_confusion_matrix(self, normalize: bool = False, save_path: Optional[str] = None) -> None:
         cm = confusion_matrix(self.y_true, self.y_pred)
         if normalize:
             row_sums = cm.sum(axis=1)[:, np.newaxis]
-            cm = np.divide(
-                cm.astype("float"), row_sums, out=np.zeros_like(cm, dtype=float), where=row_sums != 0
-            )
+            cm = np.divide(cm.astype("float"), row_sums, out=np.zeros_like(cm, dtype=float), where=row_sums != 0)
 
         plt.figure(figsize=(8, 6))
         sns.heatmap(
@@ -166,13 +141,10 @@ def evaluate_and_save(
 
 
 def main() -> None:
+    configure_logging(component="evaluate")
     parser = argparse.ArgumentParser(description="Evaluate trained models")
-    parser.add_argument(
-        "--model_path", type=str, default="data/models/xgboost.pkl", help="Path to the trained model file"
-    )
-    parser.add_argument(
-        "--test_data", type=str, default="data/models/test_data.npy", help="Path to the test data NumPy file"
-    )
+    parser.add_argument("--model_path", type=str, default="data/models/xgboost.pkl", help="Path to the trained model file")
+    parser.add_argument("--test_data", type=str, default="data/models/test_data.npy", help="Path to the test data NumPy file")
     parser.add_argument(
         "--output_path",
         type=str,

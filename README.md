@@ -15,24 +15,26 @@
 FraudShield is an advanced anomaly detection pipeline designed to identify and prevent fraudulent activities within large datasets. By leveraging cutting-edge machine learning techniques, efficient C++ data processing modules, and a robust SQL-based data storage and retrieval system, FraudShield ensures the integrity and security of financial transactions.
 
 ## Architecture
-The FraudShield pipeline consists of the following key components:
-1. **Data Ingestion**: Collects transaction data from various sources and stores it in a centralized SQL database.
-2. **Data Cleaning and Preprocessing**: Applies advanced data cleaning techniques to handle missing values, outliers, and inconsistencies.
-3. **Feature Engineering**: Extracts relevant features from the preprocessed data to capture patterns and anomalies indicative of fraudulent behavior.
-4. **Model Training and Evaluation**: Trains machine learning models (Random Forest and XGBoost) on the engineered features and evaluates their performance using cross-validation and hold-out datasets.
-5. **Model Deployment**: Deploys the trained models in a production environment for real-time fraud detection and prevention.
-6. **Monitoring and Alerting**: Continuously monitors the performance of the deployed models and triggers alerts for suspicious activities.
+The FraudShield pipeline consists of the following synergistic components forming a complete end-to-end framework:
+1. **Real-time Streaming Ingestion**: High-throughput transaction ingestion via Kafka/Redpanda bypassing legacy batch bottlenecks.
+2. **Graph Detection Engine**: Deep entity monitoring using Neo4j to isolate rings by connecting Devices, IPs, and Accounts securely.
+3. **Data Cleaning and Preprocessing**: Polished C++ capabilities handling rapid normalization, outlier identification, and windowed aggregation mapping natively.
+4. **Hybrid Risk Engine**: Evaluates transactions seamlessly by blending Machine Learning (Random Forest, XGBoost), rule-bounds, and Graph signals into a unified prediction.
+5. **SHAP Explainability**: Fully integrated explainability arrays providing dynamic, localized insights explaining high-risk anomalies automatically.
+6. **Monitoring and Alerting**: Standard Airflow & deployment topologies monitoring matrix integrity.
 
 ## Key Features
 
+- **Kafka & Neo4j Integration**: Natively scalable real-time streaming and graph network detections.
+- **Explainable AI (XAI)**: Immediate transparent scoring evaluations via `shap` computations.
 - Transactional schema sample data generator (`data/raw/synthetic_fraud_data.py`)
-- **Secure SQL ingestion** via SQLAlchemy with URL builder (SQLite by default)
-- Preprocessing with **time-based split** to prevent temporal leakage (when `transaction_date` exists)
-- **Data leakage prevention** in feature engineering (rolling-window user/merchant/currency/status aggregates)
+- **Secure SQL/Stream bindings** tracking high frequency inputs autonomously.
+- Preprocessing with **time-based split** to prevent temporal leakage
+- **Data leakage prevention** in feature engineering (rolling-window user/merchant/currency aggregates)
 - Model training (Random Forest, XGBoost) with **class balancing** and evaluation utilities
 - Optional Airflow DAG for orchestration with **runtime variable fetching**
 - **Production-ready C++ modules** with bounds checking and safety improvements
-- Comprehensive error handling and security best practices
+- Comprehensive error handling and unified testing matrices
 
 ## Installation
 
@@ -48,7 +50,9 @@ Option B: `pip`
 python -m pip install -e .
 ```
 
-If you need a legacy requirements file for tooling, use `requirements.txt` (kept for compatibility).
+Both paths now install the API/runtime dependencies as well, including FastAPI, Uvicorn, Airflow, Kafka, and Neo4j drivers.
+
+If you need environment overrides, start from `.env.example` and export the `FRAUDSHIELD_*` variables you need.
 
 ## Quickstart
 
@@ -82,6 +86,12 @@ python -m fraudshield.model_training.train_models
 python -m fraudshield.model_evaluation.evaluation
 ```
 
+Run the inference API locally:
+
+```bash
+uv run uvicorn fraudshield.ml.inference.api:app --reload
+```
+
 ## Preprocessing & Feature Engineering
 
 `fraudshield_preprocess` will:
@@ -106,22 +116,31 @@ fraudshield_preprocess --feature_windows 1h,24h,7d
 fraudshield_preprocess --feature_windows none --id_columns none
 ```
 
-**Security Note**: Database connections now use SQLAlchemy's URL builder to prevent SQL injection. Set credentials via environment variables:
+**Security Note**: Database and runtime configuration now flow through the shared `FRAUDSHIELD_*` settings layer. For example:
 
 ```bash
-export DB_USER=your_username
-export DB_PASSWORD=your_password
-export DB_HOST=localhost
-export DB_PORT=5432
-export DB_NAME=frauddb
+export FRAUDSHIELD_DATABASE_URL=postgresql+psycopg2://USER:PASSWORD@HOST:5432/DBNAME
+export FRAUDSHIELD_KAFKA_BOOTSTRAP_SERVERS=localhost:9092
+export FRAUDSHIELD_NEO4J_URI=neo4j://localhost:7687
+export FRAUDSHIELD_NEO4J_USERNAME=neo4j
+export FRAUDSHIELD_NEO4J_PASSWORD=your_password
 ```
 
 ## Airflow (Optional)
 
 - DAGs live in `src/fraudshield/data_pipeline/airflow_dags/`.
 - A sample Airflow config is in `airflow/airflow.cfg`.
+- The default local configuration uses `SequentialExecutor` with a project-local SQLite metadata DB.
 
-To use Airflow locally, set `AIRFLOW_HOME` to a directory of your choice and configure `dags_folder` to point at the DAG directory above.
+To use Airflow locally:
+
+```bash
+export AIRFLOW_HOME=.airflow
+airflow db migrate
+airflow dags list
+```
+
+If you switch to `LocalExecutor`, also switch Airflow metadata off SQLite to a real database first.
 
 ## Testing
 

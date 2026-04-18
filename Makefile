@@ -31,6 +31,10 @@ test-python:
 	uv run pytest tests/unit_tests/ -v
 	uv run pytest tests/integration_tests/ -v
 
+test-realtime:
+	@echo "Running Real-Time Architecture tests..."
+	uv run pytest tests/unit_tests/test_realtime_architecture.py -v
+
 test-cpp:
 	@echo "Testing C++ module integration..."
 	uv run python -c "from fraudshield.feature_engineering import cpp_wrapper; print('Feature engineering:', cpp_wrapper.is_cpp_available())"

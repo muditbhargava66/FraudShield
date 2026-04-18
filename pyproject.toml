@@ -36,11 +36,18 @@ dependencies = [
   "pytest",
   "joblib",
   "pybind11",
-  "starlette>=0.49.1",
+  "fastapi>=0.129.0",
+  "uvicorn",
   "confluent-kafka",
   "pydantic",
   "neo4j",
   "shap",
+]
+
+[project.optional-dependencies]
+dev = [
+  "ruff>=0.11.0",
+  "tox>=4.24.0",
 ]
 
 [project.scripts]
@@ -56,5 +63,19 @@ cmake.version = ">=3.15"
 [tool.scikit-build.sdist]
 include = ["src/fraudshield/sql/*.sql"]
 
-[tool.uv]
-override-dependencies = ["fastapi>=0.129.0", "starlette>=0.49.1"]
+[tool.ruff]
+line-length = 150
+target-version = "py310"
+extend-exclude = [
+  ".airflow",
+  "build",
+  "data/models",
+  "data/plots",
+  "data/processed",
+]
+
+[tool.ruff.lint]
+select = ["E", "F", "I"]
+
+[tool.ruff.lint.per-file-ignores]
+"notebooks/*.ipynb" = ["E402"]

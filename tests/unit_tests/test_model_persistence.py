@@ -1,9 +1,11 @@
 # tests/unit_tests/test_model_persistence.py
 
 import os
+
 import pytest
-from fraudshield.model_training.model_persistence import save_model, load_model
 from sklearn.ensemble import RandomForestClassifier
+
+from fraudshield.model_training.model_persistence import load_model, save_model
 
 
 def test_save_and_load_model(tmpdir):

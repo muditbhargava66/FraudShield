@@ -12,6 +12,7 @@ Before proceeding with the setup, ensure that you have the following prerequisit
 - C++ compiler (GCC or Clang)
 - SQL database (e.g., PostgreSQL, MySQL)
 - Apache Airflow
+- Docker and Docker Compose (Required for Kafka and Neo4j real-time streaming backends)
 - Required Python libraries (listed in `requirements.txt`)
 
 ## Installation
@@ -47,21 +48,18 @@ Before proceeding with the setup, ensure that you have the following prerequisit
    ```
    Or with pip:
    ```
-   pip install -r requirements.txt
+   python -m pip install -e .
    ```
 
-6. Compile the C++ modules:
+6. Build the project extensions:
    ```
-   cd src/fraudshield/data_cleaning
-   g++ -O3 -o data_cleaning data_cleaning.cpp
-   cd ../feature_engineering
-   g++ -O3 -o feature_engineering feature_engineering.cpp
+   make build-cpp
    ```
+   The project uses `scikit-build-core` and CMake, so manual `g++` compilation is no longer the supported path.
 
 7. Set up the SQL database:
-   - Create a new database for FraudShield.
-   - Update the database connection details in the configuration file (`conf/database.ini`).
-   - The system uses SQLAlchemy's URL builder for secure connection string construction.
+   - Start from `.env.example` and export the `FRAUDSHIELD_*` variables you need.
+   - Set `FRAUDSHIELD_DATABASE_URL` to your SQLAlchemy connection string.
    - Run the SQL scripts in the `src/fraudshield/sql` directory to create the required tables and indexes.
    - For testing, set environment variables for database credentials:
      ```bash
@@ -72,12 +70,22 @@ Before proceeding with the setup, ensure that you have the following prerequisit
      export TEST_DB_NAME=test_db
      ```
 
-8. Configure Apache Airflow:
+8. Start the Real-Time Streaming & Graph Infrastructure:
+   - FraudShield requires Neo4j and Kafka/Zookeeper to operate the real-time pipeline.
+   - Navigate to the `infra` directory and start the Docker containers:
+     ```bash
+     cd infra
+     docker-compose up -d
+     cd ..
+     ```
+
+9. Configure Apache Airflow:
    - Set up Airflow by following the official documentation: [Apache Airflow Documentation](https://airflow.apache.org/docs/apache-airflow/stable/start.html)
-   - Update the Airflow configuration file (`airflow.cfg`) with the required settings, such as the executor, database connection, and scheduler interval.
+   - FraudShield defaults to a project-local `.airflow` directory and a SQLite-backed `SequentialExecutor` setup for local development.
+   - Update the Airflow configuration file (`airflow.cfg`) only if you need to override those defaults.
    - Initialize the Airflow database:
      ```
-     airflow db init
+     airflow db migrate
      ```
    - Create an Airflow admin user:
      ```
@@ -86,10 +94,10 @@ Before proceeding with the setup, ensure that you have the following prerequisit
 
 ## Configuration
 
-1. Update the configuration files in the `conf` directory:
-   - `conf/database.ini`: Set the database connection details.
-   - `conf/airflow.cfg`: Configure Airflow settings, such as the executor and scheduler interval.
-   - `conf/pipeline.yaml`: Specify the pipeline parameters, such as input data paths, model hyperparameters, and evaluation metrics.
+1. Update the shared runtime settings:
+   - `.env.example`: Copy the variables you need into your shell or deployment environment.
+   - `airflow/airflow.cfg`: Optional Airflow overrides for local development.
+   - Airflow Variables: Optional runtime overrides for DAG task parameters like input data paths and model selection.
 
 2. Modify the SQL queries in the `src/fraudshield/sql` directory, if necessary, to match your specific database schema and requirements.
 

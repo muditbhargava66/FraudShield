@@ -13,7 +13,6 @@ License: MIT
 import argparse
 import json
 import logging
-import sys
 from pathlib import Path
 from typing import Any, List, Optional, Tuple
 
@@ -33,14 +32,8 @@ from fraudshield.feature_engineering.transaction_features import (
     add_transaction_features,
     parse_windows,
 )
+from fraudshield.runtime.logging import configure_logging
 
-# Set up logging
-Path("logs").mkdir(exist_ok=True)
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(levelname)s - %(message)s",
-    handlers=[logging.FileHandler("logs/fraudshield_preprocess.log"), logging.StreamHandler(sys.stdout)],
-)
 logger = logging.getLogger(__name__)
 
 
@@ -112,6 +105,17 @@ def _to_dense(matrix: Any) -> np.ndarray:
     return np.asarray(matrix)
 
 
+def _can_stratify(y: pd.Series | np.ndarray, test_size: float) -> bool:
+    values = np.asarray(y)
+    unique_values, counts = np.unique(values, return_counts=True)
+    if len(unique_values) < 2:
+        return False
+    minimum_test_rows = int(np.ceil(len(values) * test_size))
+    if minimum_test_rows < len(unique_values):
+        return False
+    return int(counts.min()) >= 2
+
+
 def preprocess_data(
     data: pd.DataFrame,
     target_column: str = "fraud",
@@ -135,6 +139,8 @@ def preprocess_data(
 
     if target_column not in data.columns:
         raise ValueError(f"Target column '{target_column}' not found in input data.")
+    if len(data) < 2:
+        raise ValueError("At least two rows are required for preprocessing.")
 
     feature_config = TransactionFeatureConfig(
         time_column=time_column,
@@ -182,6 +188,8 @@ def preprocess_data(
         logger.info("Using time-based split based on transaction date.")
         working_data = working_data.sort_values(time_column)
         split_index = max(1, int(len(working_data) * (1 - test_size)))
+        if split_index >= len(working_data):
+            split_index = len(working_data) - 1
         train_df = working_data.iloc[:split_index]
         test_df = working_data.iloc[split_index:]
 
@@ -195,7 +203,9 @@ def preprocess_data(
         y = working_data[target_column]
 
         logger.info(f"Splitting data with test size: {test_size}...")
-        stratify_target = y if stratify and y.nunique() > 1 else None
+        stratify_target = y if stratify and _can_stratify(y, test_size) else None
+        if stratify and stratify_target is None and y.nunique() > 1:
+            logger.warning("Disabling stratified split because the dataset is too small or imbalanced.")
         X_train, X_test, y_train, y_test = train_test_split(
             X,
             y,
@@ -213,6 +223,7 @@ def preprocess_data(
     logger.info("Fitting preprocessing pipeline on training data...")
     X_train_processed = preprocessor.fit_transform(X_train)
     X_test_processed = preprocessor.transform(X_test)
+    setattr(preprocessor, "input_feature_columns_", list(X_train.columns))
 
     try:
         feature_names = preprocessor.get_feature_names_out()
@@ -222,8 +233,8 @@ def preprocess_data(
 
     logger.info("Data preprocessing completed successfully!")
     return (
-        np.asarray(X_train_processed),
-        np.asarray(X_test_processed),
+        _to_dense(X_train_processed),
+        _to_dense(X_test_processed),
         np.asarray(y_train),
         np.asarray(y_test),
         preprocessor,
@@ -297,6 +308,7 @@ def preprocess_and_save(
     metadata = {
         "target_column": target_column,
         "feature_names": list(feature_names),
+        "input_feature_columns": list(getattr(preprocessor, "input_feature_columns_", getattr(preprocessor, "feature_names_in_", []))),
         "drop_columns": drop_columns or [],
         "time_column": time_column,
         "time_based_split": use_time_split,
@@ -312,10 +324,9 @@ def preprocess_and_save(
 
 
 def main() -> None:
+    configure_logging(component="preprocess")
     parser = argparse.ArgumentParser(description="Preprocess data for fraud detection")
-    parser.add_argument(
-        "--input_data", type=str, default="data/processed/ingested_data.csv", help="Path to the input data CSV file"
-    )
+    parser.add_argument("--input_data", type=str, default="data/processed/ingested_data.csv", help="Path to the input data CSV file")
     parser.add_argument(
         "--train_data",
         type=str,
@@ -342,13 +353,9 @@ def main() -> None:
     )
     parser.add_argument("--target_column", type=str, default="fraud", help="Name of the target column")
     parser.add_argument("--drop_columns", type=str, default="", help="Comma-separated list of columns to drop")
-    parser.add_argument(
-        "--time_column", type=str, default="transaction_date", help="Name of the transaction time column"
-    )
+    parser.add_argument("--time_column", type=str, default="transaction_date", help="Name of the transaction time column")
     parser.add_argument("--user_column", type=str, default="user_id", help="Name of the user identifier column")
-    parser.add_argument(
-        "--merchant_column", type=str, default="merchant_id", help="Name of the merchant identifier column"
-    )
+    parser.add_argument("--merchant_column", type=str, default="merchant_id", help="Name of the merchant identifier column")
     parser.add_argument("--amount_column", type=str, default="amount", help="Name of the transaction amount column")
     parser.add_argument("--currency_column", type=str, default="currency", help="Name of the currency column")
     parser.add_argument("--status_column", type=str, default="status", help="Name of the status column")

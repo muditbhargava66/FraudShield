@@ -100,9 +100,7 @@ def add_transaction_features(df: pd.DataFrame, config: TransactionFeatureConfig)
 
     if config.user_column in work_df.columns:
         work_df["user_time_since_last_txn"] = (
-            work_df.groupby(config.user_column)
-            .apply(lambda group: group.index.to_series().diff().dt.total_seconds())
-            .reset_index(level=0, drop=True)
+            work_df.groupby(config.user_column).apply(lambda group: group.index.to_series().diff().dt.total_seconds()).reset_index(level=0, drop=True)
         )
         work_df["user_amount_zscore"] = _compute_user_amount_zscore(
             work_df,
@@ -110,40 +108,24 @@ def add_transaction_features(df: pd.DataFrame, config: TransactionFeatureConfig)
             config.amount_column,
         )
         for window in windows:
-            work_df[f"user_txn_count_{window}"] = _rolling_group_agg(
-                work_df, config.user_column, config.amount_column, window, "count"
-            )
-            work_df[f"user_amount_sum_{window}"] = _rolling_group_agg(
-                work_df, config.user_column, config.amount_column, window, "sum"
-            )
-            work_df[f"user_amount_mean_{window}"] = _rolling_group_agg(
-                work_df, config.user_column, config.amount_column, window, "mean"
-            )
+            work_df[f"user_txn_count_{window}"] = _rolling_group_agg(work_df, config.user_column, config.amount_column, window, "count")
+            work_df[f"user_amount_sum_{window}"] = _rolling_group_agg(work_df, config.user_column, config.amount_column, window, "sum")
+            work_df[f"user_amount_mean_{window}"] = _rolling_group_agg(work_df, config.user_column, config.amount_column, window, "mean")
 
     if config.merchant_column in work_df.columns:
         for window in windows:
-            work_df[f"merchant_txn_count_{window}"] = _rolling_group_agg(
-                work_df, config.merchant_column, config.amount_column, window, "count"
-            )
-            work_df[f"merchant_amount_mean_{window}"] = _rolling_group_agg(
-                work_df, config.merchant_column, config.amount_column, window, "mean"
-            )
+            work_df[f"merchant_txn_count_{window}"] = _rolling_group_agg(work_df, config.merchant_column, config.amount_column, window, "count")
+            work_df[f"merchant_amount_mean_{window}"] = _rolling_group_agg(work_df, config.merchant_column, config.amount_column, window, "mean")
             if config.target_column in work_df.columns:
-                work_df[f"merchant_fraud_rate_{window}"] = _rolling_group_agg(
-                    work_df, config.merchant_column, config.target_column, window, "mean"
-                )
+                work_df[f"merchant_fraud_rate_{window}"] = _rolling_group_agg(work_df, config.merchant_column, config.target_column, window, "mean")
 
     if config.currency_column in work_df.columns:
         for window in windows:
-            work_df[f"currency_txn_count_{window}"] = _rolling_group_agg(
-                work_df, config.currency_column, config.amount_column, window, "count"
-            )
+            work_df[f"currency_txn_count_{window}"] = _rolling_group_agg(work_df, config.currency_column, config.amount_column, window, "count")
 
     if config.status_column in work_df.columns:
         for window in windows:
-            work_df[f"status_txn_count_{window}"] = _rolling_group_agg(
-                work_df, config.status_column, config.amount_column, window, "count"
-            )
+            work_df[f"status_txn_count_{window}"] = _rolling_group_agg(work_df, config.status_column, config.amount_column, window, "count")
 
     work_df = work_df.reset_index()
     work_df = work_df.sort_values("__orig_index__")

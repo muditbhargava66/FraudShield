@@ -1,6 +1,7 @@
-import pandas as pd
 import numpy as np
+import pandas as pd
 
+from fraudshield.feature_engineering.stateful_aggregates import StatefulFeatureStore
 from fraudshield.feature_engineering.transaction_features import (
     TransactionFeatureConfig,
     add_transaction_features,
@@ -45,3 +46,35 @@ def test_transaction_feature_generation_closed_left():
 
     # Merchant fraud rate uses past transactions only (merchant 10)
     assert result.loc[2, "merchant_fraud_rate_1h"] == 0.0
+
+
+def test_stateful_feature_store_tracks_history_without_recomputing():
+    store = StatefulFeatureStore(windows=["1h"])
+
+    first = store.build_features(
+        {
+            "transaction_id": "t1",
+            "user_id": "u1",
+            "merchant_id": "m1",
+            "currency": "USD",
+            "status": "approved",
+            "amount": 100.0,
+            "transaction_date": "2024-01-01T00:00:00Z",
+        }
+    )
+    second = store.build_features(
+        {
+            "transaction_id": "t2",
+            "user_id": "u1",
+            "merchant_id": "m1",
+            "currency": "USD",
+            "status": "approved",
+            "amount": 200.0,
+            "transaction_date": "2024-01-01T00:30:00Z",
+        }
+    )
+
+    assert first["user_txn_count_1h"] == 0.0
+    assert second["user_txn_count_1h"] == 1.0
+    assert second["user_amount_sum_1h"] == 100.0
+    assert second["user_time_since_last_txn"] == 1800.0

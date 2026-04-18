@@ -1,6 +1,8 @@
 import unittest
-import pandas as pd
 from unittest.mock import patch
+
+import pandas as pd
+
 from fraudshield.sql.data_retrieval import DataRetrieval
 
 
