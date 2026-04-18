@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Hotfix: Security & Dependency Vulnerabilities
 - **Airflow Deserialization & JWT Bypass Resolution**: Natively updated `apache-airflow` from `>=3.1.7` to `>=3.2.0` immediately mitigating `CVE-2025-57735`, `CVE-2026-33858`, and `CVE-2025-54550`. This prevents legacy XCom APIs from arbitrary unsandboxed deserialization operations and secures dangling backend API keys securely.
+- **Transitive Lock Escalation**: Regenerated the full underlying environment natively with `uv lock --upgrade`, sealing out 18 flagged Dependabot transient vulnerabilities embedded deep within downstream dependency chains without forcing any breaking API syntax inside the testing backend.
 
 ---
 
