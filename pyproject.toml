@@ -31,7 +31,7 @@ dependencies = [
   "seaborn",
   "sqlalchemy",
   "psycopg2-binary",
-  "apache-airflow>=3.1.7",
+  "apache-airflow>=3.2.0",
   "apache-airflow-providers-snowflake",
   "pytest",
   "joblib",
