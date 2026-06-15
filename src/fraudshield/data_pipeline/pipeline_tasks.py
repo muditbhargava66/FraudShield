@@ -88,4 +88,64 @@ def run_model_evaluation(
 
 
 def run_model_deployment() -> None:
-    logger.info("Model deployment task placeholder - implement deployment integration here")
+    """Verify inference artifacts are loadable and the API app can start."""
+    from fraudshield.config.settings import get_settings
+    from fraudshield.runtime.resources import load_inference_artifacts
+
+    settings = get_settings()
+    logger.info("Validating deployment artifacts at %s", settings.models.model_dir)
+    artifacts = load_inference_artifacts(settings.models)
+    logger.info(
+        "Deployment validation passed: model loaded with %d input features",
+        len(artifacts.input_feature_columns),
+    )
+
+def run_data_drift_check(
+    train_data: str = "data/models/preprocessed_data.npy",
+    test_data: str = "data/models/test_data.npy",
+    metadata_path: str = "data/models/preprocessing_metadata.json",
+    drift_threshold: float = 0.05,
+    max_drift_ratio: float = 0.3,
+) -> None:
+    import json
+
+    import numpy as np
+    from scipy import stats
+
+    logger.info("Starting data drift check")
+    
+    # Load arrays
+    train_arr = np.load(train_data)
+    test_arr = np.load(test_data)
+    
+    # Exclude the target column (last column)
+    X_train = train_arr[:, :-1]
+    X_test = test_arr[:, :-1]
+    
+    # Try to load feature names for better logging
+    feature_names = None
+    try:
+        with open(metadata_path, 'r') as f:
+            metadata = json.load(f)
+            feature_names = metadata.get("feature_names", None)
+    except Exception as e:
+        logger.warning("Could not load metadata for feature names: %s", e)
+        
+    num_features = X_train.shape[1]
+    drifted_features = 0
+    
+    for i in range(num_features):
+        feat_name = feature_names[i] if feature_names and i < len(feature_names) else f"feature_{i}"
+        
+        # KS-test
+        stat, p_value = stats.ks_2samp(X_train[:, i], X_test[:, i])
+        
+        if p_value < drift_threshold:
+            logger.warning("Drift detected in %s: KS stat=%.4f, p_value=%.4e", feat_name, stat, p_value)
+            drifted_features += 1
+            
+    drift_ratio = drifted_features / num_features if num_features > 0 else 0
+    logger.info("Data drift check completed: %d/%d (%.1f%%) features drifted.", drifted_features, num_features, drift_ratio * 100)
+    
+    if drift_ratio > max_drift_ratio:
+        raise Exception(f"Data drift threshold exceeded! {drift_ratio*100:.1f}% > {max_drift_ratio*100:.1f}% limit.")

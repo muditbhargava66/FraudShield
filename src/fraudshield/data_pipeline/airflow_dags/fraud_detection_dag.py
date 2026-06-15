@@ -18,15 +18,16 @@ from fraudshield.config.settings import configure_airflow_environment  # noqa: E
 SETTINGS = configure_airflow_environment()
 
 try:
-    from airflow.providers.standard.operators.python import PythonOperator
+    from airflow.providers.standard.operators.python import PythonOperator  # type: ignore[no-redef]
     from airflow.sdk import DAG, Variable
 except ImportError:  # pragma: no cover - Airflow 2 fallback
     from airflow.models import Variable
-    from airflow.operators.python import PythonOperator
+    from airflow.operators.python import PythonOperator  # type: ignore[no-redef]
 
-    from airflow import DAG
+    from airflow import DAG  # type: ignore[attr-defined]
 
 from fraudshield.data_pipeline.pipeline_tasks import (  # noqa: E402
+    run_data_drift_check,
     run_data_ingestion,
     run_data_preprocessing,
     run_model_deployment,
@@ -35,7 +36,7 @@ from fraudshield.data_pipeline.pipeline_tasks import (  # noqa: E402
 )
 
 try:
-    from airflow.providers.snowflake.operators.snowflake import SnowflakeOperator
+    from airflow.providers.snowflake.operators.snowflake import SnowflakeOperator  # type: ignore[attr-defined]
 except ImportError as exc:  # pragma: no cover - optional provider
     logging.getLogger(__name__).warning("SnowflakeOperator not available: %s", exc)
     SnowflakeOperator = None
@@ -65,9 +66,9 @@ dag = DAG(
 
 def _variable_get(key: str, default: str) -> Any:
     try:
-        return Variable.get(key, default=default)
+        return Variable.get(key, default=default)  # type: ignore[call-arg]
     except TypeError:  # pragma: no cover - Airflow 2 fallback
-        return Variable.get(key, default_var=default)
+        return Variable.get(key, default_var=default)  # type: ignore[call-arg]
 
 
 def _data_ingestion_task() -> None:
@@ -86,6 +87,14 @@ def _data_preprocessing_task() -> None:
         train_data=_variable_get("train_data", "data/models/preprocessed_data.npy"),
         test_data=_variable_get("test_data", "data/models/test_data.npy"),
         preprocessor_path=_variable_get("preprocessor_path", str(SETTINGS.models.preprocessor_path)),
+        metadata_path=_variable_get("metadata_path", str(SETTINGS.models.metadata_path)),
+    )
+
+
+def _data_drift_task() -> None:
+    run_data_drift_check(
+        train_data=_variable_get("train_data", "data/models/preprocessed_data.npy"),
+        test_data=_variable_get("test_data", "data/models/test_data.npy"),
         metadata_path=_variable_get("metadata_path", str(SETTINGS.models.metadata_path)),
     )
 
@@ -117,6 +126,7 @@ data_preprocessing_task = PythonOperator(
     python_callable=_data_preprocessing_task,
     dag=dag,
 )
+data_drift_task = PythonOperator(task_id="data_drift", python_callable=_data_drift_task, dag=dag)
 model_training_task = PythonOperator(task_id="model_training", python_callable=_model_training_task, dag=dag)
 model_evaluation_task = PythonOperator(task_id="model_evaluation", python_callable=_model_evaluation_task, dag=dag)
 
@@ -130,4 +140,4 @@ if SnowflakeOperator is not None:
 else:
     model_deployment_task = PythonOperator(task_id="model_deployment", python_callable=run_model_deployment, dag=dag)
 
-data_ingestion_task >> data_preprocessing_task >> model_training_task >> model_evaluation_task >> model_deployment_task
+data_ingestion_task >> data_preprocessing_task >> data_drift_task >> model_training_task >> model_evaluation_task >> model_deployment_task
