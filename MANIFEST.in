@@ -1,0 +1,20 @@
+include LICENSE
+include README.md
+include CHANGELOG.md
+include CONTRIBUTING.md
+include pyproject.toml
+include CMakeLists.txt
+include pytest.ini
+include tox.ini
+include requirements.txt
+
+recursive-include src *.py *.cpp *.h *.sql
+recursive-include tests *.py *.cpp
+recursive-include docs *.md
+recursive-include scripts *.py
+
+global-exclude __pycache__
+global-exclude *.pyc
+global-exclude *.pyo
+global-exclude *.so
+global-exclude *.egg-info

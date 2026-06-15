@@ -1,6 +1,7 @@
 # Python caches and virtualenvs
 __pycache__/
 *.py[cod]
+*$py.class
 *.pyd
 *.so
 .Python
@@ -46,11 +47,14 @@ compile_commands.json
 *.swp
 *.swo
 *~
+*.sublime-workspace
+*.sublime-project
 
 # OS clutter
 .DS_Store
 Thumbs.db
 Desktop.ini
+ehthumbs.db
 
 # Local configuration and secrets
 .env
