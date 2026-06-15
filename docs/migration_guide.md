@@ -1,478 +1,117 @@
-# Migration Guide: Upgrading to Secure FraudShield
+# Migration Guide: v2.2.0 → v2.3.0
 
-This guide helps you migrate from the previous version of FraudShield to the updated version with security and data quality improvements.
+## Overview of Changes
 
-## Overview
-
-The updated FraudShield includes critical fixes for:
-- SQL injection vulnerabilities
-- Data leakage in feature engineering
-- Buffer overflows in C++ modules
-- Performance optimizations
-- Enhanced error handling
+- **Tooling**: Replaced flake8/pylint/black with ruff + mypy
+- **Data**: New synthetic data generator (5,000 transactions, multi-factor fraud)
+- **Schema**: Added `is_international` and `is_online` columns
+- **Features**: Fixed duplicate-index bug in rolling window computation
+- **Config**: Added `[tool.mypy]` and `[tool.ruff]` to `pyproject.toml`
 
 ## Breaking Changes
 
-### 1. Database Connection API
+### 1. Database Schema
 
-**Old Code**:
-```python
-from fraudshield.sql.data_retrieval import DataRetrieval
+Two new columns added to the `transactions` table:
 
-db_config = {
-    'user': 'myuser',
-    'password': 'mypass',
-    'host': 'localhost',
-    'port': '5432',
-    'database': 'frauddb'
-}
-
-retrieval = DataRetrieval(db_config)
+```sql
+is_international BOOLEAN NOT NULL DEFAULT 0,
+is_online        BOOLEAN NOT NULL DEFAULT 1,
 ```
 
-**New Code** (No changes required - internal implementation updated):
-```python
-from fraudshield.sql.data_retrieval import DataRetrieval
+**Action**: Delete old SQLite DB and re-ingest:
 
-# Same API, but now uses secure URL builder internally
-db_config = {
-    'user': 'myuser',
-    'password': 'mypass',
-    'host': 'localhost',
-    'port': '5432',
-    'database': 'frauddb'
-}
-
-retrieval = DataRetrieval(db_config)
+```bash
+rm data/processed/fraud_data.db data/processed/ingested_data.csv
+uv run python data/raw/synthetic_fraud_data.py
+uv run fraudshield_ingest
 ```
-
-**Action Required**: None - backward compatible
 
 ### 2. Feature Engineering
 
-**Old Code**:
-```python
-from fraudshield.feature_engineering.transaction_features import add_transaction_features
+The `_rolling_group_agg` and `_compute_user_amount_zscore` functions now use integer position columns (`__pos__`) instead of DatetimeIndex alignment. This fixes a `ValueError: cannot reindex on an axis with duplicate labels` error that occurred with larger datasets.
 
-# This had data leakage issues
-features_df = add_transaction_features(df, config)
+The API is unchanged — `add_transaction_features(df, config)` works the same way.
+
+**Action**: Re-preprocess and retrain models:
+
+```bash
+uv run fraudshield_preprocess
+uv run fraudshield_train --model both
 ```
 
-**New Code** (No API changes, but behavior improved):
-```python
-from fraudshield.feature_engineering.transaction_features import add_transaction_features
+### 3. Linting Toolchain
 
-# Same API, but now prevents data leakage
-features_df = add_transaction_features(df, config)
+| Old | New |
+|-----|-----|
+| `flake8 src tests` | `ruff check src tests` |
+| `pylint src/` | `mypy src/` |
+| `black src tests` | `ruff format src tests` |
+
+**Action**: Update CI configs and IDE settings:
+
+```bash
+# Run new linters
+uv run ruff check src tests
+uv run mypy src/
+uv run ruff format --check src tests
 ```
 
-**Action Required**: 
-- Re-train all models with the corrected features
-- Expect different feature values (no longer includes current transaction)
-- Model performance may change (should be more realistic)
+### 4. Synthetic Data
 
-### 3. Model Training
+The old generator produced 1,000 samples with simplistic fraud patterns. The new generator produces 5,000 samples with:
 
-**Old Code**:
-```python
-from fraudshield.model_training.train_models import train_and_save
+- 15 designated fraudster users
+- 8 high-risk merchants
+- Multi-factor fraud: amount, user behavior, merchant, channel, time-of-day
+- ~7% fraud rate
 
-metrics = train_and_save(
-    preprocessed_data='data/models/preprocessed_data.npy',
-    test_data='data/models/test_data.npy',
-    output_dir='data/models',
-    model='both'
-)
-```
-
-**New Code** (Same API):
-```python
-from fraudshield.model_training.train_models import train_and_save
-
-# Same API, but now with better label encoding validation
-metrics = train_and_save(
-    preprocessed_data='data/models/preprocessed_data.npy',
-    test_data='data/models/test_data.npy',
-    output_dir='data/models',
-    model='both'
-)
-```
-
-**Action Required**: None - backward compatible
-
-### 4. C++ Modules
-
-**Old Code**:
-```cpp
-// Compilation
-g++ -O3 -o data_cleaning data_cleaning.cpp
-```
-
-**New Code** (Same compilation):
-```cpp
-// Same compilation, but now with bounds checking
-g++ -O3 -o data_cleaning data_cleaning.cpp
-```
-
-**Action Required**: 
-- Recompile C++ modules to get safety improvements
-- Test with edge cases (empty data, window_size=1, etc.)
+**Action**: Regenerate data and retrain. Model metrics will differ from v2.2.0.
 
 ## Migration Steps
 
-### Step 1: Backup Current System
+```bash
+# 1. Pull latest
+git checkout version-2.3.0
+git pull
+
+# 2. Reinstall (picks up new ruff/mypy configs)
+uv pip install -e ".[dev]"
+
+# 3. Regenerate data
+uv run python data/raw/synthetic_fraud_data.py
+
+# 4. Run full pipeline
+uv run fraudshield_ingest
+uv run fraudshield_preprocess
+uv run fraudshield_train --model both
+uv run fraudshield_evaluate --model_path data/models/xgboost.pkl
+
+# 5. Verify quality
+uv run pytest tests/ -v
+uv run ruff check src tests
+uv run mypy src/
+```
+
+## Expected Model Performance
+
+With the v2.3.0 synthetic data:
+
+| Model | ROC-AUC | Precision@0.3 | Recall@0.3 |
+|-------|---------|---------------|------------|
+| Random Forest | ~0.76 | ~0.24 | ~0.40 |
+| XGBoost | ~0.72 | ~0.25 | ~0.12 |
+
+At default threshold (0.5), recall is low because fraud detection typically requires a lower decision threshold. Use the threshold sweep in `notebooks/model_experimentation.ipynb` to find the right operating point.
+
+## Rollback
 
 ```bash
-# Backup your current models
-cp -r data/models data/models.backup
-
-# Backup your database
-pg_dump frauddb > frauddb_backup.sql
-
-# Backup configuration
-cp -r conf conf.backup
+git checkout version-2.2.0
+uv pip install -e .
+uv run fraudshield_ingest
+uv run fraudshield_preprocess
+uv run fraudshield_train --model both
 ```
 
-### Step 2: Update Dependencies
-
-```bash
-# Update Python packages
-uv sync
-
-# Or with pip
-pip install -r requirements.txt --upgrade
-```
-
-### Step 3: Update Environment Variables
-
-Create a `.env` file or export environment variables:
-
-```bash
-# Database credentials
-export DB_USER=your_username
-export DB_PASSWORD=your_password
-export DB_HOST=localhost
-export DB_PORT=5432
-export DB_NAME=frauddb
-
-# Test database credentials
-export TEST_DB_USER=test_user
-export TEST_DB_PASSWORD=test_password
-export TEST_DB_HOST=localhost
-export TEST_DB_PORT=5432
-export TEST_DB_NAME=test_db
-```
-
-### Step 4: Recompile C++ Modules
-
-```bash
-cd src/fraudshield/data_cleaning
-g++ -O3 -std=c++11 -o data_cleaning data_cleaning.cpp
-
-cd ../feature_engineering
-g++ -O3 -std=c++11 -o feature_engineering feature_engineering.cpp
-```
-
-### Step 5: Re-preprocess Data
-
-The feature engineering has changed, so you need to re-preprocess:
-
-```bash
-python -m fraudshield.data_preprocessing.data_preprocessing \
-    --input_data data/processed/ingested_data.csv \
-    --train_data data/models/preprocessed_data.npy \
-    --test_data data/models/test_data.npy \
-    --preprocessor_path data/models/preprocessor.joblib \
-    --metadata_path data/models/preprocessing_metadata.json
-```
-
-### Step 6: Re-train Models
-
-Since features have changed, re-train your models:
-
-```bash
-python -m fraudshield.model_training.train_models \
-    --preprocessed_data data/models/preprocessed_data.npy \
-    --test_data data/models/test_data.npy \
-    --output_dir data/models \
-    --model both
-```
-
-### Step 7: Update Airflow DAGs
-
-If using Airflow, restart the scheduler to pick up the changes:
-
-```bash
-# Stop Airflow
-airflow scheduler stop
-airflow webserver stop
-
-# Start Airflow
-airflow scheduler &
-airflow webserver --port 8080 &
-```
-
-### Step 8: Run Tests
-
-Verify everything works:
-
-```bash
-# Run unit tests
-pytest tests/unit_tests/ -v
-
-# Run integration tests
-pytest tests/integration_tests/ -v
-
-# Run C++ tests (if available)
-cd tests/cpp
-./run_tests.sh
-```
-
-## Validation Checklist
-
-After migration, verify:
-
-- [ ] Database connections work without errors
-- [ ] Feature engineering produces expected output
-- [ ] No data leakage in features (check with temporal validation)
-- [ ] Models train successfully
-- [ ] Model performance is reasonable (may differ from before)
-- [ ] C++ modules don't crash on edge cases
-- [ ] Airflow DAGs run without errors
-- [ ] Tests pass
-- [ ] Logs show no security warnings
-
-## Expected Changes in Model Performance
-
-### Why Performance May Change
-
-1. **Data Leakage Fix**: Features no longer include current transaction
-   - Training accuracy may decrease slightly
-   - Test accuracy should be more realistic
-   - Generalization should improve
-
-2. **Statistical Corrections**: Sample std instead of population std
-   - Z-scores will be slightly different
-   - Outlier detection may change
-
-3. **Time-Based Splitting**: When temporal features are present
-   - More realistic evaluation
-   - May show lower performance if temporal drift exists
-
-### Benchmarking
-
-Compare old vs new models:
-
-```python
-import pandas as pd
-
-# Load old metrics
-old_metrics = pd.read_json('data/models.backup/training_metrics.json')
-
-# Load new metrics
-new_metrics = pd.read_json('data/models/training_metrics.json')
-
-# Compare
-comparison = pd.DataFrame({
-    'Old': old_metrics['random_forest'],
-    'New': new_metrics['random_forest']
-})
-
-print(comparison)
-```
-
-Expected changes:
-- Training accuracy: May decrease 1-3%
-- Test accuracy: Should be similar or slightly better
-- Precision/Recall: May shift based on class balance
-- ROC AUC: Should remain stable or improve
-
-## Rollback Procedure
-
-If you need to rollback:
-
-```bash
-# Stop services
-airflow scheduler stop
-airflow webserver stop
-
-# Restore backups
-rm -rf data/models
-mv data/models.backup data/models
-
-# Restore database
-psql frauddb < frauddb_backup.sql
-
-# Restore configuration
-rm -rf conf
-mv conf.backup conf
-
-# Checkout previous version
-git checkout <previous-version-tag>
-
-# Restart services
-airflow scheduler &
-airflow webserver --port 8080 &
-```
-
-## Troubleshooting
-
-### Issue: Import Error for SQLAlchemy URL
-
-**Error**: `ImportError: cannot import name 'URL' from 'sqlalchemy.engine.url'`
-
-**Solution**: Update SQLAlchemy:
-```bash
-pip install sqlalchemy>=1.4.0 --upgrade
-```
-
-### Issue: Feature Values Changed
-
-**Error**: Features have different values than before
-
-**Solution**: This is expected! The old implementation had data leakage. Re-train models with new features.
-
-### Issue: C++ Module Crashes
-
-**Error**: Segmentation fault in C++ modules
-
-**Solution**: 
-1. Recompile with debug symbols: `g++ -g -O0 data_cleaning.cpp`
-2. Run with valgrind: `valgrind ./data_cleaning`
-3. Check for edge cases (empty data, window_size=1)
-
-### Issue: Airflow Variables Not Updating
-
-**Error**: DAG uses old variable values
-
-**Solution**: The new implementation fetches variables at runtime. Clear Airflow cache:
-```bash
-airflow db reset
-airflow db init
-```
-
-### Issue: Test Database Connection Fails
-
-**Error**: `Connection refused` or authentication errors
-
-**Solution**: Set environment variables:
-```bash
-export TEST_DB_USER=test_user
-export TEST_DB_PASSWORD=test_password
-export TEST_DB_HOST=localhost
-```
-
-## Performance Optimization Tips
-
-### 1. Database Connection Pooling
-
-```python
-from sqlalchemy import create_engine
-from sqlalchemy.pool import QueuePool
-
-engine = create_engine(
-    db_url,
-    poolclass=QueuePool,
-    pool_size=10,
-    max_overflow=20
-)
-```
-
-### 2. Batch Processing
-
-For large datasets, process in batches:
-
-```python
-chunk_size = 10000
-for chunk in pd.read_csv('large_file.csv', chunksize=chunk_size):
-    process_chunk(chunk)
-```
-
-### 3. Parallel Feature Engineering
-
-Use multiple cores for feature engineering:
-
-```python
-from joblib import Parallel, delayed
-
-results = Parallel(n_jobs=-1)(
-    delayed(add_transaction_features)(chunk, config)
-    for chunk in chunks
-)
-```
-
-## Security Best Practices
-
-### 1. Credential Management
-
-Never hardcode credentials:
-
-```python
-# ❌ DON'T
-db_config = {'user': 'admin', 'password': 'password123'}
-
-#  DO
-import os
-db_config = {
-    'user': os.getenv('DB_USER'),
-    'password': os.getenv('DB_PASSWORD')
-}
-```
-
-### 2. SQL Query Validation
-
-Always use parameterized queries:
-
-```python
-# ❌ DON'T
-query = f"SELECT * FROM transactions WHERE user_id = {user_id}"
-
-#  DO
-from sqlalchemy import text
-query = text("SELECT * FROM transactions WHERE user_id = :user_id")
-result = engine.execute(query, user_id=user_id)
-```
-
-### 3. Input Validation
-
-Validate all user inputs:
-
-```python
-def validate_window_size(window_size):
-    if not isinstance(window_size, int):
-        raise ValueError("window_size must be an integer")
-    if window_size < 2:
-        raise ValueError("window_size must be at least 2")
-    return window_size
-```
-
-## Support
-
-If you encounter issues during migration:
-
-1. Check the logs in `logs/` directory
-2. Review the documentation in `docs/`
-3. Run the test suite to identify specific failures
-4. Check the GitHub issues for similar problems
-5. Contact support with detailed error messages
-
-## Additional Resources
-
-- [Security and Quality Documentation](security_and_quality.md)
-- [Setup Instructions](setup_instructions.md)
-- [Data Dictionary](data_dictionary.md)
-- [C++ Modules Documentation](cpp_modules.md)
-- [Updated Best Practices Notebook](../notebooks/updated_best_practices.ipynb)
-- [Fixes Summary](../FIXES_SUMMARY.md)
-
-## Conclusion
-
-The migration to the updated FraudShield brings significant improvements in security, data quality, and reliability. While some changes require re-training models, the benefits far outweigh the migration effort:
-
--  Eliminated critical security vulnerabilities
--  Fixed data leakage for more accurate models
--  Improved code safety and error handling
--  Better performance through optimization
--  Enhanced maintainability and debugging
-
-Take your time with the migration, validate each step, and don't hesitate to reach out for support if needed.
+---

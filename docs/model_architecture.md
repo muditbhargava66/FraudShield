@@ -1,86 +1,96 @@
 # Model Architecture
 
-FraudShield employs a state-of-the-art **hybrid streaming architecture** incorporating Machine Learning models (Random Forest, XGBoost), Graph Analytics (Neo4j), and Rule-based constraints to detect and prevent fraudulent activities natively in real-time.
+FraudShield uses a **hybrid architecture** combining ML models (Random Forest, XGBoost), graph analytics (Neo4j), and rule-based constraints for fraud detection.
 
-## Real-Time Architecture (Streaming & Graph Integration)se shifts the framework from a batch-oriented process to a high-frequency streaming pipeline:
+## Batch Pipeline
 
-1. **Streaming Ingestion layer**: Transactions are consumed seamlessly at thousands of TPS via **Confluent Kafka/Redpanda** bypassing legacy DB ingestion limits. 
-2. **Neo4j Graph Tracking**: Distinct entities (Devices, IPs, Accounts) are tracked natively as interconnected nodes in a Graph Database to isolate ring-based anomalies automatically bridging transactions laterally.
-3. **Hybrid Risk Engine**: Final predictions traverse a `HybridRiskEngine` isolating compound scores blending ML outputs, Graph Network densities, and Static Rules to determine hard STOP/ALLOW actions securely.
-4. **SHAP Explainability**: Fraud probabilities are run through a TreeExplainer (`shap`) synchronously generating a sorted dictionary proving exactly which column parameters triggered the risk override.
+```
+Raw CSV → Ingestion (SQLite) → Preprocessing → Feature Engineering → Data Drift Check → Training → Evaluation
+```
 
-## Machine Learning Models (Random Forest & XGBoost)
+1. **Data Ingestion**: Reads CSV data, validates schema, loads into SQLite
+2. **Preprocessing**: Applies C++ data cleaning, encodes categoricals, imputes missing values
+3. **Feature Engineering**: Computes rolling window aggregations and behavioral features
+4. **Data Drift Validation**: Performs Kolmogorov-Smirnov tests between train and test splits to detect distributional shifts before training
+5. **Training**: Fits Random Forest and/or XGBoost on preprocessed arrays
+6. **Evaluation**: Computes metrics, generates confusion matrices, saves reports
 
+## Real-Time Architecture (Optional)
 
-## Random Forest
-Random Forest is an ensemble learning method that combines multiple decision trees to make predictions. It is known for its ability to handle high-dimensional data, capture complex interactions, and provide robust results.
+Requires Docker (Kafka + Neo4j):
 
-The Random Forest model in FraudShield is configured with the following hyperparameters:
-- `n_estimators`: The number of decision trees in the forest.
-- `max_depth`: The maximum depth of each decision tree.
-- `min_samples_split`: The minimum number of samples required to split an internal node.
-- `min_samples_leaf`: The minimum number of samples required to be at a leaf node.
-- `max_features`: The number of features to consider when looking for the best split.
+1. **Streaming Ingestion**: Transactions consumed via Kafka at configurable throughput
+2. **Neo4j Graph Tracking**: Entities (devices, IPs, accounts) tracked as graph nodes to detect ring fraud
+3. **Hybrid Risk Engine**: Blends ML (0.6), graph (0.25), and rule (0.15) scores into a final risk value
+4. **SHAP Explainability**: TreeExplainer generates per-prediction feature attributions
 
-The optimal values for these hyperparameters are determined through a grid search and cross-validation process to maximize the model's performance.
+## ML Models
 
-## XGBoost
-XGBoost (Extreme Gradient Boosting) is a powerful gradient boosting framework that combines multiple weak learners to create a strong predictive model. It is known for its excellent performance, scalability, and ability to handle sparse data.
+### Random Forest
 
-The XGBoost model in FraudShield is configured with the following hyperparameters:
-- `n_estimators`: The number of boosting rounds.
-- `max_depth`: The maximum depth of each decision tree.
-- `learning_rate`: The step size shrinkage used in each boosting round to prevent overfitting.
-- `subsample`: The fraction of samples to be used for fitting the individual base learners.
-- `colsample_bytree`: The fraction of columns to be randomly sampled for each tree.
+Ensemble of decision trees with bootstrap aggregation.
 
-Similar to Random Forest, the optimal values for these hyperparameters are determined through a grid search and cross-validation process.
+| Parameter | Default | Purpose |
+|-----------|---------|---------|
+| `n_estimators` | 300 | Number of trees |
+| `class_weight` | `balanced_subsample` | Handles class imbalance per-tree |
+| `max_depth` | None (auto) | Tree depth limit |
+| `min_samples_split` | 2 | Minimum samples for internal split |
+| `min_samples_leaf` | 1 | Minimum samples at leaf |
 
-## Model Training and Evaluation
-The Random Forest and XGBoost models are trained using the engineered features and the labeled transaction data. The training process involves the following steps:
+### XGBoost
 
-1. Data Splitting: 
-   - When temporal features are present, time-based splitting is enforced to prevent temporal leakage
-   - Otherwise, stratified sampling is used to ensure balanced class representation
-   - Test size defaults to 20% of the data
+Gradient boosted trees with regularization.
 
-2. Label Encoding:
-   - String labels are automatically detected and encoded using LabelEncoder
-   - The encoder is saved for consistent transformation of test data
-   - Validation ensures test data uses the same encoding scheme
+| Parameter | Default | Purpose |
+|-----------|---------|---------|
+| `n_estimators` | 300 | Boosting rounds |
+| `scale_pos_weight` | auto | `neg_count / pos_count` for imbalance |
+| `max_depth` | 6 | Tree depth limit |
+| `learning_rate` | 0.1 | Step size shrinkage |
+| `eval_metric` | `aucpr` | Optimizes area under PR curve |
 
-3. Model Initialization: 
-   - Random Forest: Uses `class_weight='balanced_subsample'` by default, 300 estimators
-   - XGBoost: Automatically calculates `scale_pos_weight` based on class imbalance, uses 'aucpr' eval metric
+## Feature Engineering
 
-4. Model Training: 
-   - Models are trained on the training set using the engineered features as input
-   - Predictions are cached to avoid redundant computation during evaluation
+### Rolling Window Features
 
-5. Model Evaluation: 
-   - Trained models are evaluated using accuracy, precision, recall, F1 score, ROC AUC, and Average Precision
-   - All metrics use `zero_division=0` to handle edge cases gracefully
-   - Confusion matrices are generated and saved as visualizations
+Computed per-entity (user, merchant, currency, status) with windows `[1h, 24h, 7d, 30d]`:
 
-6. Hyperparameter Tuning: 
-   - Hyperparameters can be provided as JSON strings or dictionaries
-   - Separate parameters for Random Forest ('rf') and XGBoost ('xgb')
-   - Grid search and cross-validation can be used for optimization
+| Feature | Aggregation | Leakage Prevention |
+|---------|-------------|-------------------|
+| `*_txn_count_{window}` | count | `closed="left"` excludes current row |
+| `*_amount_sum_{window}` | sum | `closed="left"` |
+| `*_amount_mean_{window}` | mean | `closed="left"` |
+| `*_fraud_rate_{window}` | mean | `closed="left"` (merchant only) |
 
-7. Model Selection: 
-   - Both models are evaluated and their metrics are saved to `training_metrics.json`
-   - The best-performing model is selected based on the evaluation metrics
-   - Models are serialized using joblib for deployment
+### Behavioral Features
 
-## Model Deployment
-The selected model (either Random Forest or XGBoost) is deployed in a production environment for real-time fraud detection. The deployment process involves the following steps:
+| Feature | Description | Leakage Prevention |
+|---------|-------------|-------------------|
+| `user_time_since_last_txn` | Seconds since user's previous transaction | Computed on time-sorted data |
+| `user_amount_zscore` | Z-score vs user's expanding history | `shift(1)` excludes current, `ddof=1` |
 
-1. Model Serialization: The trained model is serialized and saved to a file for easy deployment and reuse.
+### Raw Features
 
-2. API Development: An API is developed to expose the model's predictions to other systems or applications.
+`amount`, `is_international`, `is_online`, `currency` (one-hot), `status` (one-hot)
 
-3. Integration: The API is integrated with the existing fraud detection system to enable seamless communication and data flow.
+## Training Process
 
-4. Monitoring: The standard batch ML pipeline has been extended to support real-time evaluation of transactions via Kafka, Neo4j, and SHAP. This represents the real-time execution capability of the FraudShield platform.ipeline provides a robust and scalable architecture for training, evaluating, and deploying machine learning models for fraud detection. The combination of Random Forest and XGBoost models ensures high accuracy and adaptability to various types of fraudulent patterns.
+1. **Time-based split**: When temporal features exist, data is split chronologically (no random shuffle)
+2. **Label encoding**: String labels auto-detected and encoded; encoder saved for test consistency
+3. **Class imbalance**: RF uses `balanced_subsample`, XGBoost uses `scale_pos_weight`
+4. **Evaluation**: accuracy, precision, recall, F1, ROC-AUC, average precision (all use `zero_division=0`)
+5. **Artifacts**: Models saved as `.pkl`, metrics as JSON, confusion matrices as PNG
+
+## Model Selection
+
+Both models train independently. Selection is based on test-set metrics saved to `training_metrics.json`. The default evaluation model is XGBoost.
+
+## Deployment
+
+Trained models are loaded by `FraudInferenceService` for:
+- **Batch scoring**: Via CLI `fraudshield_evaluate`
+- **Real-time API**: FastAPI endpoint at `/predict`
+- **Kafka consumer**: Processes streaming events with the same preprocessor and model
 
 ---
