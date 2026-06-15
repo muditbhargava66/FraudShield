@@ -1,6 +1,11 @@
 import unittest
-import pandas as pd
 from unittest.mock import patch
+
+import pandas as pd
+import pytest
+
+pytest.importorskip("sqlalchemy")
+
 from fraudshield.sql.data_retrieval import DataRetrieval
 
 

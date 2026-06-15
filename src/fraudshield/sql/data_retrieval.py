@@ -9,24 +9,36 @@ Author: Mudit Bhargava
 License: MIT
 """
 
+from __future__ import annotations
+
+from collections.abc import Mapping
+
 import pandas as pd
-from sqlalchemy import create_engine, text
+from sqlalchemy import text
 from sqlalchemy.engine.url import URL
+
+from fraudshield.config.settings import DatabaseSettings, get_settings
+from fraudshield.runtime.resources import create_sqlalchemy_engine
 
 
 class DataRetrieval:
-    def __init__(self, db_config):
-        # Use SQLAlchemy URL builder to safely construct connection string
-        # This prevents SQL injection through connection string parameters
-        db_url = URL.create(
-            drivername="postgresql",
-            username=db_config["user"],
-            password=db_config["password"],
-            host=db_config["host"],
-            port=db_config["port"],
-            database=db_config["database"],
-        )
-        self.engine = create_engine(db_url)
+    def __init__(self, db_config: Mapping[str, str] | None = None, db_connection_string: str | None = None) -> None:
+        if db_connection_string:
+            resolved_url: str | URL = db_connection_string
+        elif db_config:
+            drivername = db_config.get("drivername", "postgresql+psycopg2")
+            port_str = db_config.get("port")
+            resolved_url = URL.create(
+                drivername=drivername,
+                username=db_config.get("user"),
+                password=db_config.get("password"),
+                host=db_config.get("host"),
+                port=int(port_str) if port_str else None,
+                database=db_config.get("database"),
+            )
+        else:
+            resolved_url = get_settings().database.sqlalchemy_url
+        self.engine = create_sqlalchemy_engine(DatabaseSettings(sqlalchemy_url=str(resolved_url)))
 
     def retrieve_transactions(self, start_date, end_date):
         query = text(
@@ -56,3 +68,6 @@ class DataRetrieval:
         """
         )
         return pd.read_sql(query, self.engine)
+
+    def close(self) -> None:
+        self.engine.dispose()

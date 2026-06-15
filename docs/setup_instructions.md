@@ -1,136 +1,133 @@
-# docs/setup_instructions.md
-
 # Setup Instructions
 
-This document provides step-by-step instructions for setting up the FraudShield anomaly detection pipeline on your local machine or a production environment.
+Step-by-step instructions for setting up FraudShield locally.
 
 ## Prerequisites
 
-Before proceeding with the setup, ensure that you have the following prerequisites installed:
-
-- Python 3.10 or higher
-- C++ compiler (GCC or Clang)
-- SQL database (e.g., PostgreSQL, MySQL)
-- Apache Airflow
-- Required Python libraries (listed in `requirements.txt`)
+- Python 3.10+
+- C++ compiler (GCC 7+ or Clang 5+) — only needed for C++ extensions
+- Docker and Docker Compose — only for Kafka/Neo4j real-time streaming
+- Apache Airflow — optional, for DAG-based orchestration
 
 ## Installation
 
-1. Clone the FraudShield repository from GitHub:
-   ```
+1. Clone the repository:
+   ```bash
    git clone https://github.com/muditbhargava66/FraudShield.git
-   ```
-
-2. Navigate to the project directory:
-   ```
    cd FraudShield
    ```
 
-3. Create a virtual environment for the project:
-   ```
-   python -m venv venv
-   ```
-
-4. Activate the virtual environment:
-   - For Windows:
-     ```
-     venv\Scripts\activate
-     ```
-   - For Unix or Linux:
-     ```
-     source venv/bin/activate
-     ```
-
-5. Install the required Python libraries:
-   ```
-   uv sync
+2. Install dependencies with [uv](https://docs.astral.sh/uv/):
+   ```bash
+   uv pip install -e .
    ```
    Or with pip:
-   ```
-   pip install -r requirements.txt
-   ```
-
-6. Compile the C++ modules:
-   ```
-   cd src/fraudshield/data_cleaning
-   g++ -O3 -o data_cleaning data_cleaning.cpp
-   cd ../feature_engineering
-   g++ -O3 -o feature_engineering feature_engineering.cpp
+   ```bash
+   pip install -e .
    ```
 
-7. Set up the SQL database:
-   - Create a new database for FraudShield.
-   - Update the database connection details in the configuration file (`conf/database.ini`).
-   - The system uses SQLAlchemy's URL builder for secure connection string construction.
-   - Run the SQL scripts in the `src/fraudshield/sql` directory to create the required tables and indexes.
-   - For testing, set environment variables for database credentials:
-     ```bash
-     export TEST_DB_USER=your_user
-     export TEST_DB_PASSWORD=your_password
-     export TEST_DB_HOST=localhost
-     export TEST_DB_PORT=5432
-     export TEST_DB_NAME=test_db
-     ```
+3. Build C++ extensions (optional):
+   ```bash
+   uv pip install -e .   # triggers CMake + pybind11
+   ```
 
-8. Configure Apache Airflow:
-   - Set up Airflow by following the official documentation: [Apache Airflow Documentation](https://airflow.apache.org/docs/apache-airflow/stable/start.html)
-   - Update the Airflow configuration file (`airflow.cfg`) with the required settings, such as the executor, database connection, and scheduler interval.
-   - Initialize the Airflow database:
-     ```
-     airflow db init
-     ```
-   - Create an Airflow admin user:
-     ```
-     airflow users create --username admin --password admin --firstname Admin --lastname User --role Admin --email admin@example.com
-     ```
+4. Verify installation:
+   ```bash
+   uv run pytest tests/ -v
+   uv run ruff check src tests
+   uv run mypy src/
+   ```
 
-## Configuration
+## Database Configuration
 
-1. Update the configuration files in the `conf` directory:
-   - `conf/database.ini`: Set the database connection details.
-   - `conf/airflow.cfg`: Configure Airflow settings, such as the executor and scheduler interval.
-   - `conf/pipeline.yaml`: Specify the pipeline parameters, such as input data paths, model hyperparameters, and evaluation metrics.
+1. Copy `.env.example` and set the variables you need:
+   ```bash
+   cp .env.example .env
+   ```
 
-2. Modify the SQL queries in the `src/fraudshield/sql` directory, if necessary, to match your specific database schema and requirements.
+2. Set `FRAUDSHIELD_DATABASE_URL` to your SQLAlchemy connection string, e.g.:
+   ```bash
+   export FRAUDSHIELD_DATABASE_URL="sqlite:///data/processed/fraud_data.db"
+   ```
+
+3. For PostgreSQL or other databases:
+   ```bash
+   export FRAUDSHIELD_DATABASE_URL="postgresql://user:pass@localhost:5432/frauddb"
+   ```
+
+4. Run the SQL schema to create the required tables:
+   ```bash
+   # The schema is in src/fraudshield/sql/create_tables.sql
+   # It is applied automatically during ingestion
+   ```
+
+## Real-Time Infrastructure (Optional)
+
+For the streaming pipeline (Kafka + Neo4j):
+
+```bash
+cd infra
+docker-compose up -d
+```
+
+This starts Kafka, Zookeeper, and Neo4j. The batch pipeline works without Docker.
+
+## Airflow (Optional)
+
+1. Install with Airflow extras:
+   ```bash
+   uv pip install -e ".[airflow]"
+   ```
+
+2. Initialize the database:
+   ```bash
+   airflow db migrate
+   ```
+
+3. Start the webserver and scheduler:
+   ```bash
+   airflow webserver --port 8080 &
+   airflow scheduler &
+   ```
+
+4. Access the UI at `http://localhost:8080` and enable the FraudShield DAG.
 
 ## Running the Pipeline
 
-1. Start the Airflow webserver and scheduler:
-   ```
-   airflow webserver --port 8080
-   airflow scheduler
-   ```
+Run the batch pipeline end-to-end:
 
-2. Access the Airflow web interface by navigating to `http://localhost:8080` in your web browser.
+```bash
+# 1. Generate synthetic data
+uv run python data/raw/synthetic_fraud_data.py
 
-3. Enable the FraudShield DAG (Directed Acyclic Graph) in the Airflow web interface.
+# 2. Ingest
+uv run fraudshield_ingest
 
-4. Trigger the DAG manually or wait for the scheduled run according to the configured schedule interval.
+# 3. Preprocess
+uv run fraudshield_preprocess
 
-5. Monitor the pipeline execution in the Airflow web interface and check the logs for any errors or issues.
+# 4. Train
+uv run fraudshield_train --model both
+
+# 5. Evaluate
+uv run fraudshield_evaluate --model_path data/models/xgboost.pkl
+```
 
 ## Troubleshooting
 
-- If you encounter any issues during the setup or execution of the pipeline, refer to the log files generated by Airflow and the individual components of the pipeline.
+| Problem | Solution |
+|---------|----------|
+| C++ modules fail to compile | Ensure GCC 7+ or Clang 5+ is installed. Run `uv pip install -e .` |
+| `ModuleNotFoundError: fraudshield` | Run `uv pip install -e .` from the project root |
+| Database connection errors | Check `FRAUDSHIELD_DATABASE_URL` environment variable |
+| Import errors for Airflow operators | Install with `uv pip install -e ".[airflow]"` |
+| Feature values look wrong | This is expected — rolling windows use `closed="left"` to prevent data leakage |
 
-- Check the configuration files to ensure that all the required settings are correctly specified.
+## Support
 
-- Verify that the necessary dependencies and libraries are installed correctly.
-
-- If you face any database-related issues, double-check the database connection details and ensure that the SQL scripts have been executed successfully. The system now uses SQLAlchemy's URL builder for secure connections.
-
-- For Airflow-related problems, consult the Apache Airflow documentation and community forums for guidance and solutions.
-
-- If you see import errors for optional dependencies (like SnowflakeOperator), check the logs for specific error messages. The system will gracefully fall back to alternative implementations.
-
-- For C++ module compilation issues, ensure you have a compatible compiler (GCC 7+ or Clang 5+) and that all bounds checking and validation code compiles correctly.
-
-- If you encounter data leakage warnings or issues with feature engineering, verify that time-based splitting is enabled when using temporal features.
-
-## Support and Feedback
-
-If you have any questions, suggestions, or feedback regarding the FraudShield anomaly detection pipeline, please contact our support team at support@fraudshield.com. We appreciate your input and are committed to continuously improving the pipeline to meet your needs.
-
-Happy fraud detection with FraudShield!
+For issues or questions, open a GitHub issue with:
+- Python version (`python --version`)
+- Error traceback
+- Steps to reproduce
 
 ---

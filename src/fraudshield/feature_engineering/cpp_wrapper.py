@@ -1,14 +1,19 @@
 """
-FraudShield - Advanced Anomaly Detection Pipeline
+FraudShield - Optional C++ Feature Engineering Module
 
-This module provides Python bindings for the C++ feature engineering module.
-It computes complex rolling indicators (Moving Average, EMA, RSI) natively
-and safely falls back to pure Python if C++ acceleration is unavailable.
+This module provides experimental C++-accelerated feature computations.
+NOTE: This module is NOT used in the default fraud detection pipeline.
 
-File: cpp_wrapper.py
-Author: Mudit Bhargava
-License: MIT
+The default pipeline (transaction_features.py) uses pandas rolling operations
+which are more flexible for time-based windows and better suited for fraud
+detection on transaction streams.
+
+The functions here (moving average, EMA, RSI) are provided for experimentation
+and research purposes. RSI (Relative Strength Index) is a technical analysis
+indicator designed for stock price sequences and may not be appropriate for
+transaction amount analysis.
 """
+
 import logging
 
 import numpy as np
@@ -17,7 +22,7 @@ logger = logging.getLogger(__name__)
 
 # Try to import C++ module
 try:
-    from fraudshield.feature_engineering import _feature_engineering_cpp
+    from fraudshield.feature_engineering import _feature_engineering_cpp  # type: ignore[attr-defined]
 
     CPP_AVAILABLE = True
     logger.info("C++ feature engineering module loaded successfully")
@@ -46,7 +51,7 @@ def calculate_moving_average(data: np.ndarray, window_size: int) -> np.ndarray:
     # Python fallback using pandas
     import pandas as pd
 
-    return pd.Series(data).rolling(window=window_size).mean().values[window_size - 1:]
+    return pd.Series(data).rolling(window=window_size).mean().values[window_size - 1 :]
 
 
 def calculate_exponential_moving_average(data: np.ndarray, alpha: float) -> np.ndarray:

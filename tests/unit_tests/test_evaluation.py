@@ -1,8 +1,10 @@
+import tempfile
 import unittest
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
-import tempfile
-from pathlib import Path
+
 from fraudshield.model_evaluation.evaluation import ModelEvaluation
 
 

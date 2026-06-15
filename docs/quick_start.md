@@ -1,8 +1,6 @@
 # FraudShield - Quick Start Guide
 
-##  Status: All Issues Fixed & Tested
-
-**40/40 tests passing** | **18/18 issues fixed** | **Production Ready** *(Tested against large schema implementations)*
+**30/30 tests passing** | Lint: ruff + mypy
 
 ---
 
@@ -10,75 +8,56 @@
 
 ```bash
 # Clone repository
-git clone <repository-url>
+git clone https://github.com/muditbhargava66/FraudShield.git
 cd FraudShield
 
-# Install Python dependencies
-uv pip install -r requirements.txt
-
-# Or if building extensions, install package in development mode
+# Install with uv (recommended)
 uv pip install -e .
+
+# Or with pip
+pip install -e .
 ```
 
 ---
 
-## Running Tests
+## Quality Checks
 
-### Quick Test (Recommended)
 ```bash
 # Run all tests
 uv run pytest tests/ -v
+
+# Lint
+uv run ruff check src tests
+
+# Type check
+uv run mypy src/
+
+# Format
+uv run ruff format src tests
 ```
 
 ### Using Makefile
 ```bash
-# Run all tests (Unit, Integration, and C++ module verification)
-make test
-
-# Run specific test suites
-make test-python     # Python tests via uv
-make test-cpp        # C++ bindings detection
-
-# Clean build artifacts
-make clean
-```
-
-### Individual Test Suites
-```bash
-# Test unit tests (16 tests)
-uv run pytest tests/unit_tests/ -v
-
-# Test integration
-uv run pytest tests/integration_tests/ -v
+make test          # pytest
+make lint          # ruff check
+make typecheck     # mypy
+make format        # ruff format
+make clean         # remove build artifacts
 ```
 
 ---
 
-## C++ Integration (Optional - For Performance)
+## C++ Extensions (Optional)
 
-### Check Current Status
 ```bash
+# Check availability
 uv run python -c "from fraudshield.feature_engineering import cpp_wrapper; print('C++ Available:', cpp_wrapper.is_cpp_available())"
-```
 
-### Build C++ Extensions
-```bash
-# Install pybind11 and scikit-build-core
-uv pip install pybind11 scikit-build-core
-
-# Build extensions via editable install
+# Build via editable install (triggers CMake + pybind11)
 uv pip install -e .
-
-# Or use Makefile
-make build-cpp
 ```
 
-### Verify C++ Works
-```bash
-make test-cpp
-```
-
-**Note**: C++ is optional. Python fallback works perfectly and is fully tested.
+C++ is optional. Python fallbacks work and are fully tested.
 
 ---
 
@@ -99,13 +78,14 @@ uv run fraudshield_preprocess \
     --train_data data/models/preprocessed_data.npy \
     --test_data data/models/test_data.npy \
     --preprocessor_path data/models/preprocessor.joblib \
-    --metadata_path data/models/metadata.json
+    --metadata_path data/models/preprocessing_metadata.json
 ```
 
 ### 3. Model Training
 ```bash
 uv run fraudshield_train \
     --preprocessed_data data/models/preprocessed_data.npy \
+    --test_data data/models/test_data.npy \
     --output_dir data/models \
     --model both
 ```
@@ -115,16 +95,32 @@ uv run fraudshield_train \
 uv run fraudshield_evaluate \
     --model_path data/models/xgboost.pkl \
     --test_data data/models/test_data.npy \
-    --output_path data/models/evaluation_report.csv
+    --output_path data/models/evaluation_report.csv \
+    --confusion_matrix_path data/plots/confusion_matrix.png
 ```
 
 ---
 
-## Quick Test Command
+## Generate Synthetic Data
 
 ```bash
-# One command to verify everything works natively through pipeline
-make test
+uv run python data/raw/synthetic_fraud_data.py
 ```
 
-Expected output: `All tests completed!` 
+Produces 5,000 transactions with ~7% fraud rate across 200 users and 80 merchants.
+
+---
+
+## Airflow (Optional)
+
+```bash
+# Install with airflow extras
+uv pip install -e ".[airflow]"
+
+# Initialize
+airflow db migrate
+airflow webserver --port 8080 &
+airflow scheduler &
+```
+
+---

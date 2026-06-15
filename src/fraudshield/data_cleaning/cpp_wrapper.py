@@ -9,6 +9,7 @@ File: cpp_wrapper.py
 Author: Mudit Bhargava
 License: MIT
 """
+
 import logging
 
 import numpy as np
@@ -17,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 # Try to import C++ module
 try:
-    from fraudshield.data_cleaning import _data_cleaning_cpp
+    from fraudshield.data_cleaning import _data_cleaning_cpp  # type: ignore[attr-defined]
 
     CPP_AVAILABLE = True
     logger.info("C++ data cleaning module loaded successfully")

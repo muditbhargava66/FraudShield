@@ -12,20 +12,15 @@ License: MIT
 
 import argparse
 import logging
-import sys
 from pathlib import Path
 from typing import Optional
 
 import pandas as pd
-from sqlalchemy import create_engine
 
-# Set up logging
-Path("logs").mkdir(exist_ok=True)
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(levelname)s - %(message)s",
-    handlers=[logging.FileHandler("logs/fraudshield_ingest.log"), logging.StreamHandler(sys.stdout)],
-)
+from fraudshield.config.settings import DatabaseSettings, get_settings
+from fraudshield.runtime.logging import configure_logging
+from fraudshield.runtime.resources import create_sqlalchemy_engine
+
 logger = logging.getLogger(__name__)
 
 
@@ -33,7 +28,7 @@ class DataIngestion:
     def __init__(self, data_path: str, db_connection_string: str) -> None:
         self.data_path = Path(data_path)
         self.db_connection_string = db_connection_string
-        self.engine = create_engine(db_connection_string)
+        self.engine = create_sqlalchemy_engine(DatabaseSettings(sqlalchemy_url=db_connection_string))
 
     def read_csv_file(self, file_name: str, **read_csv_kwargs) -> pd.DataFrame:
         """
@@ -103,6 +98,9 @@ class DataIngestion:
             logger.error(f"Error writing to database: {str(e)}")
             raise ValueError(f"Error writing to database: {str(e)}") from e
 
+    def close(self) -> None:
+        self.engine.dispose()
+
     def run_ingestion_pipeline(
         self,
         file_name: str,
@@ -125,19 +123,19 @@ class DataIngestion:
 
 
 def main() -> None:
+    settings = get_settings()
+    configure_logging(settings, component="ingestion")
     parser = argparse.ArgumentParser(description="Data Ingestion Pipeline")
     parser.add_argument("--data_path", type=str, default="data/raw", help="Path to the raw data directory")
     parser.add_argument(
         "--db_connection_string",
         type=str,
-        default="sqlite:///data/processed/fraud_data.db",
+        default=settings.database.sqlalchemy_url,
         help="Database connection string",
     )
     parser.add_argument("--input_file", type=str, default="synthetic_fraud_data.csv", help="Name of the input CSV file")
     parser.add_argument("--table_name", type=str, default="fraud_data", help="Name of the database table")
-    parser.add_argument(
-        "--output_file", type=str, default="data/processed/ingested_data.csv", help="Path to save the ingested data"
-    )
+    parser.add_argument("--output_file", type=str, default="data/processed/ingested_data.csv", help="Path to save the ingested data")
     parser.add_argument(
         "--if_exists",
         type=str,
@@ -150,13 +148,16 @@ def main() -> None:
     args = parser.parse_args()
 
     data_ingestion = DataIngestion(args.data_path, args.db_connection_string)
-    data_ingestion.run_ingestion_pipeline(
-        args.input_file,
-        args.table_name,
-        if_exists=args.if_exists,
-        chunksize=args.chunksize,
-    )
-    data_ingestion.save_ingested_data(args.input_file, args.output_file)
+    try:
+        data_ingestion.run_ingestion_pipeline(
+            args.input_file,
+            args.table_name,
+            if_exists=args.if_exists,
+            chunksize=args.chunksize,
+        )
+        data_ingestion.save_ingested_data(args.input_file, args.output_file)
+    finally:
+        data_ingestion.close()
 
 
 if __name__ == "__main__":

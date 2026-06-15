@@ -1,8 +1,8 @@
 # tests/unit_tests/test_data_ingestion.py
 
-import os
 import pandas as pd
 import pytest
+
 from fraudshield.data_ingestion.data_ingestion import DataIngestion
 
 

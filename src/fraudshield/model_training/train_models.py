@@ -13,7 +13,6 @@ License: MIT
 import argparse
 import json
 import logging
-import sys
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple, Union
 
@@ -32,13 +31,8 @@ from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder
 from xgboost import XGBClassifier
 
-# Set up logging
-Path("logs").mkdir(exist_ok=True)
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(levelname)s - %(message)s",
-    handlers=[logging.FileHandler("logs/fraudshield_train.log"), logging.StreamHandler(sys.stdout)],
-)
+from fraudshield.runtime.logging import configure_logging
+
 logger = logging.getLogger(__name__)
 
 
@@ -105,9 +99,7 @@ def train_random_forest(
     return rf_model
 
 
-def train_xgboost(
-    X_train: np.ndarray, y_train: np.ndarray, random_state: int = 42, params: Optional[Dict[str, Any]] = None
-) -> XGBClassifier:
+def train_xgboost(X_train: np.ndarray, y_train: np.ndarray, random_state: int = 42, params: Optional[Dict[str, Any]] = None) -> XGBClassifier:
     scale_pos_weight = _compute_scale_pos_weight(y_train)
     model_params = {
         "n_estimators": 300,
@@ -208,6 +200,7 @@ def train_and_save(
 
 
 def main() -> None:
+    configure_logging(component="train")
     parser = argparse.ArgumentParser(description="Train fraud detection models")
     parser.add_argument(
         "--preprocessed_data",
@@ -224,13 +217,9 @@ def main() -> None:
     parser.add_argument("--output_dir", type=str, default="data/models", help="Directory to save the trained models")
     parser.add_argument("--model", type=str, default="both", choices=["rf", "xgb", "both"], help="Which model to train")
     parser.add_argument("--hyperparameters", type=str, default="", help="Optional JSON string of model hyperparameters")
-    parser.add_argument(
-        "--test_size", type=float, default=0.2, help="Test size for splitting if no test_data is provided"
-    )
+    parser.add_argument("--test_size", type=float, default=0.2, help="Test size for splitting if no test_data is provided")
     parser.add_argument("--random_state", type=int, default=42, help="Random seed for reproducibility")
-    parser.add_argument(
-        "--no_stratify", action="store_true", help="Disable stratified splitting when creating a validation set"
-    )
+    parser.add_argument("--no_stratify", action="store_true", help="Disable stratified splitting when creating a validation set")
     args = parser.parse_args()
 
     try:

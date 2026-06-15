@@ -1,17 +1,17 @@
-.PHONY: help install build-cpp test test-python test-cpp test-fixes clean lint format
+.PHONY: help install build-cpp test test-python test-cpp clean lint typecheck format
 
 help:
 	@echo "FraudShield - Makefile Commands"
 	@echo "================================"
 	@echo "install       - Install Python dependencies"
 	@echo "build-cpp     - Build C++ extensions with pybind11"
-	@echo "test          - Run all tests (Python + C++ + fixes verification)"
+	@echo "test          - Run all tests (Python + C++)"
 	@echo "test-python   - Run Python unit and integration tests"
 	@echo "test-cpp      - Run C++ module tests"
-	@echo "test-fixes    - Run bug fixes verification tests"
 	@echo "clean         - Remove build artifacts and cache files"
-	@echo "lint          - Run code linting"
-	@echo "format        - Format code with black"
+	@echo "lint          - Run ruff linting"
+	@echo "typecheck     - Run mypy type checking"
+	@echo "format        - Format code with ruff"
 
 install:
 	@echo "Installing dependencies..."
@@ -30,6 +30,10 @@ test-python:
 	@echo "Running Python tests..."
 	uv run pytest tests/unit_tests/ -v
 	uv run pytest tests/integration_tests/ -v
+
+test-realtime:
+	@echo "Running Real-Time Architecture tests..."
+	uv run pytest tests/unit_tests/test_realtime_architecture.py -v
 
 test-cpp:
 	@echo "Testing C++ module integration..."
@@ -50,11 +54,14 @@ clean:
 	@echo "Clean complete!"
 
 lint:
-	@echo "Running linting..."
-	flake8 src/fraudshield --max-line-length=150 --ignore=E501,W503 || true
-	pylint src/fraudshield --max-line-length=150 --disable=C0111,C0103,R0913,W0718,R0914,R0917,W1203,R0915,W1514,R0902,C0415 || true
+	@echo "Running ruff linting..."
+	uv run ruff check src tests
+
+typecheck:
+	@echo "Running mypy type checking..."
+	uv run mypy src/
 
 format:
-	@echo "Formatting code..."
-	black src/fraudshield tests/ --line-length=150 || true
+	@echo "Formatting code with ruff..."
+	uv run ruff format src tests
 	@echo "Format complete!"
