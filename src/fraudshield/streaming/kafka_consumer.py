@@ -14,8 +14,8 @@ from fraudshield.runtime.resources import create_kafka_consumer
 try:
     from confluent_kafka import KafkaError, KafkaException
 except ImportError:  # pragma: no cover - optional dependency
-    KafkaError = None
-    KafkaException = RuntimeError
+    KafkaError = None  # type: ignore[assignment,misc]
+    KafkaException = RuntimeError  # type: ignore[assignment,misc]
 
 logger = logging.getLogger(__name__)
 
