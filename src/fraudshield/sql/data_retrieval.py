@@ -24,15 +24,16 @@ from fraudshield.runtime.resources import create_sqlalchemy_engine
 class DataRetrieval:
     def __init__(self, db_config: Mapping[str, str] | None = None, db_connection_string: str | None = None) -> None:
         if db_connection_string:
-            resolved_url = db_connection_string
+            resolved_url: str | URL = db_connection_string
         elif db_config:
             drivername = db_config.get("drivername", "postgresql+psycopg2")
+            port_str = db_config.get("port")
             resolved_url = URL.create(
                 drivername=drivername,
                 username=db_config.get("user"),
                 password=db_config.get("password"),
                 host=db_config.get("host"),
-                port=db_config.get("port"),
+                port=int(port_str) if port_str else None,
                 database=db_config.get("database"),
             )
         else:

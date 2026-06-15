@@ -164,24 +164,24 @@ def preprocess_data(
     if use_time_split:
         drop_set.add(time_column)
 
-    # Apply C++ data cleaning routines to numerical tracking columns
+    # Apply C++ data cleaning: remove NaNs then identify outlier bounds via z-score.
+    # The cleaned array defines the valid-data median used to fill outlier positions.
     if amount_column in working_data.columns:
-        logger.info(f"Applying native C++ data cleaning routines for column: {amount_column}")
+        logger.info(f"Applying C++ data cleaning routines for column: {amount_column}")
 
         amount_data = working_data[amount_column]
         cleaned_amount = remove_outliers(remove_missing_values(amount_data.to_numpy()), threshold=4.0)
-
-        # In a generic ML pipeline, dropping independent rows changes the target mapping length.
-        # We fill anomalies based on the clean C++ bounded array.
         median_val = float(np.median(cleaned_amount)) if len(cleaned_amount) > 0 else 0.0
 
-        mean_val = amount_data.mean()
-        std_val = amount_data.std()
+        # Determine the valid range from the C++-cleaned data and apply directly
+        if len(cleaned_amount) > 0:
+            clean_min = float(np.min(cleaned_amount))
+            clean_max = float(np.max(cleaned_amount))
+            outlier_mask = (amount_data < clean_min) | (amount_data > clean_max)
+        else:
+            outlier_mask = pd.Series(False, index=working_data.index)
 
-        if std_val > 0:
-            outlier_mask = np.abs((amount_data - mean_val) / std_val) > 4.0
-            working_data.loc[outlier_mask, amount_column] = median_val
-
+        working_data.loc[outlier_mask, amount_column] = median_val
         working_data[amount_column] = working_data[amount_column].fillna(median_val)
 
     if use_time_split:
