@@ -1,6 +1,8 @@
 import pytest
 
-pytest.importorskip("airflow")
+# Skip entire module if airflow providers are not available
+pytest.importorskip("airflow.providers")
+pytest.importorskip("airflow.models")
 
 from fraudshield.data_pipeline.airflow_dags import fraud_detection_dag
 
@@ -18,7 +20,11 @@ def test_dag_loaded():
 def test_dag_tasks():
     dag = _dag()
     task_ids = [task.task_id for task in dag.tasks]
-    assert sorted(task_ids) == sorted(["data_ingestion", "data_preprocessing", "model_training", "model_evaluation", "model_deployment"])
+    expected = sorted([
+        "data_ingestion", "data_preprocessing", "data_drift",
+        "model_training", "model_evaluation", "model_deployment",
+    ])
+    assert sorted(task_ids) == expected
 
 
 def test_dag_schedule_interval():

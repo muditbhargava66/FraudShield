@@ -1,4 +1,3 @@
-import numpy as np
 import pandas as pd
 
 from fraudshield.feature_engineering.stateful_aggregates import StatefulFeatureStore
@@ -32,14 +31,14 @@ def test_transaction_feature_generation_closed_left():
 
     result = result.set_index("transaction_id")
 
-    # First transaction for user 1 has no history
-    assert np.isnan(result.loc[1, "user_txn_count_1h"])
+    # First transaction for user 1 has no history — fillna(0.0) converts NaN to 0
+    assert result.loc[1, "user_txn_count_1h"] == 0.0
 
     # Second transaction sees the first within 1h
     assert result.loc[2, "user_txn_count_1h"] == 1
 
-    # Third transaction is outside the 1h window from the second
-    assert np.isnan(result.loc[3, "user_txn_count_1h"])
+    # Third transaction is outside the 1h window from the second — fillna(0.0)
+    assert result.loc[3, "user_txn_count_1h"] == 0.0
 
     # User 1 time since last transaction at id=2 is 30 minutes
     assert result.loc[2, "user_time_since_last_txn"] == 1800.0
