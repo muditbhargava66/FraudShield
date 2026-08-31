@@ -23,10 +23,14 @@ class FraudGraphRepository:
                 session.run(query)
 
     def upsert_transaction(self, payload: Dict[str, Any]) -> None:
+        params = self._params(payload)
+        if params["transaction_id"] is None:
+            raise ValueError("Cannot upsert graph transaction without a transaction_id.")
+        if params["user_id"] is None:
+            raise ValueError("Cannot upsert graph transaction without a user_id/account_id.")
+
         query = """
         MERGE (a:Account {id: $user_id})
-        MERGE (d:Device {id: $device_id})
-        MERGE (i:IPAddress {address: $ip_address})
         MERGE (t:Transaction {id: $transaction_id})
         ON CREATE SET
             t.amount = $amount,
@@ -41,11 +45,17 @@ class FraudGraphRepository:
             t.currency = coalesce(t.currency, $currency),
             t.status = coalesce(t.status, $status)
         MERGE (a)-[:INITIATED]->(t)
-        MERGE (t)-[:FROM_DEVICE]->(d)
-        MERGE (t)-[:FROM_IP]->(i)
+        FOREACH (_ IN CASE WHEN $device_id IS NULL THEN [] ELSE [1] END |
+            MERGE (d:Device {id: $device_id})
+            MERGE (t)-[:FROM_DEVICE]->(d)
+        )
+        FOREACH (_ IN CASE WHEN $ip_address IS NULL THEN [] ELSE [1] END |
+            MERGE (i:IPAddress {address: $ip_address})
+            MERGE (t)-[:FROM_IP]->(i)
+        )
         """
         with self.driver.session() as session:
-            session.run(query, **self._params(payload))
+            session.run(query, **params)
 
     def entity_risk(self, payload: Dict[str, Any]) -> float:
         query = """
