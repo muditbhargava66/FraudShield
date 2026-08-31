@@ -68,7 +68,7 @@ class DataIngestion:
         dataframe: pd.DataFrame,
         table_name: str,
         if_exists: str = "append",
-        chunksize: Optional[int] = 100,
+        chunksize: Optional[int] = 10000,
     ):
         """
         Write the DataFrame to the specified database table.
@@ -91,7 +91,6 @@ class DataIngestion:
                     if_exists=if_exists,
                     index=False,
                     chunksize=chunksize,
-                    # method="multi",
                 )
             logger.info(f"Data ingested successfully into table: {table_name}")
         except Exception as e:
@@ -134,7 +133,7 @@ def main() -> None:
         help="Database connection string",
     )
     parser.add_argument("--input_file", type=str, default="synthetic_fraud_data.csv", help="Name of the input CSV file")
-    parser.add_argument("--table_name", type=str, default="fraud_data", help="Name of the database table")
+    parser.add_argument("--table_name", type=str, default="transactions", help="Name of the database table")
     parser.add_argument("--output_file", type=str, default="data/processed/ingested_data.csv", help="Path to save the ingested data")
     parser.add_argument(
         "--if_exists",
@@ -143,7 +142,7 @@ def main() -> None:
         choices=["fail", "replace", "append"],
         help="Behavior if the table already exists",
     )
-    parser.add_argument("--chunksize", type=int, default=100, help="Chunk size for database inserts")
+    parser.add_argument("--chunksize", type=int, default=10000, help="Chunk size for database inserts")
 
     args = parser.parse_args()
 
