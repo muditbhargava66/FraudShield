@@ -57,6 +57,16 @@ class KafkaSettings:
     producer_client_id: str
     consumer_client_id: str
     poll_timeout_seconds: float
+    broker_type: str
+    sasl_username: str = ""
+    sasl_password: str = ""
+
+
+@dataclass(frozen=True)
+class MonitoringSettings:
+    enabled: bool
+    port: int
+    metrics_path: str
 
 
 @dataclass(frozen=True)
@@ -92,6 +102,7 @@ class RuntimeSettings:
     kafka: KafkaSettings
     neo4j: Neo4jSettings
     models: ModelArtifactSettings
+    monitoring: MonitoringSettings
 
     @classmethod
     def from_env(cls) -> "RuntimeSettings":
@@ -132,11 +143,14 @@ class RuntimeSettings:
                 producer_client_id=os.getenv("FRAUDSHIELD_KAFKA_PRODUCER_CLIENT_ID", "fraudshield-transaction-producer"),
                 consumer_client_id=os.getenv("FRAUDSHIELD_KAFKA_CONSUMER_CLIENT_ID", "fraudshield-transaction-consumer"),
                 poll_timeout_seconds=float(os.getenv("FRAUDSHIELD_KAFKA_POLL_TIMEOUT_SECONDS", "1.0")),
+                broker_type=os.getenv("FRAUDSHIELD_KAFKA_BROKER_TYPE", "kafka"),
+                sasl_username=os.getenv("FRAUDSHIELD_KAFKA_SASL_USERNAME", ""),
+                sasl_password=os.getenv("FRAUDSHIELD_KAFKA_SASL_PASSWORD", ""),
             ),
             neo4j=Neo4jSettings(
                 uri=os.getenv("FRAUDSHIELD_NEO4J_URI", "neo4j://localhost:7687"),
                 username=os.getenv("FRAUDSHIELD_NEO4J_USERNAME", "neo4j"),
-                password=os.getenv("FRAUDSHIELD_NEO4J_PASSWORD", "fraudshield_secret_v3"),
+                password=os.getenv("FRAUDSHIELD_NEO4J_PASSWORD", ""),
                 verify_connectivity=_getenv_bool("FRAUDSHIELD_NEO4J_VERIFY_CONNECTIVITY", True),
             ),
             models=ModelArtifactSettings(
@@ -144,6 +158,11 @@ class RuntimeSettings:
                 default_model_name=os.getenv("FRAUDSHIELD_DEFAULT_MODEL", "xgboost"),
                 preprocessor_path=Path(os.getenv("FRAUDSHIELD_PREPROCESSOR_PATH", DATA_ROOT / "models" / "preprocessor.joblib")),
                 metadata_path=Path(os.getenv("FRAUDSHIELD_PREPROCESSING_METADATA_PATH", DATA_ROOT / "models" / "preprocessing_metadata.json")),
+            ),
+            monitoring=MonitoringSettings(
+                enabled=_getenv_bool("FRAUDSHIELD_MONITORING_ENABLED", True),
+                port=_getenv_int("FRAUDSHIELD_MONITORING_PORT", 9090),
+                metrics_path=os.getenv("FRAUDSHIELD_MONITORING_METRICS_PATH", "/metrics"),
             ),
         )
 
