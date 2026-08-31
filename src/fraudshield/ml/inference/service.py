@@ -5,6 +5,7 @@ Inference service that keeps preprocessing, model loading, and streaming feature
 from __future__ import annotations
 
 import logging
+import time
 import uuid
 from dataclasses import dataclass
 from typing import Any, Dict, Optional
@@ -15,6 +16,13 @@ from fraudshield.config.settings import RuntimeSettings, get_settings
 from fraudshield.feature_engineering.stateful_aggregates import StatefulFeatureStore
 from fraudshield.ml.explainability.shap_explainer import FraudExplainer
 from fraudshield.runtime.resources import InferenceArtifacts, load_inference_artifacts
+
+try:
+    from fraudshield.monitoring.metrics import get_metrics
+except ImportError:  # pragma: no cover - optional monitoring
+
+    def get_metrics():  # type: ignore[misc]
+        return None
 
 logger = logging.getLogger(__name__)
 
@@ -63,37 +71,53 @@ class FraudInferenceService:
             self.artifacts = None
 
     def predict(self, payload: Dict[str, Any]) -> PredictionResult:
+        start = time.perf_counter()
         normalized = self._normalize_payload(payload)
-        features = self._build_feature_frame(normalized)
+        raw_features = self._build_feature_frame(normalized)
         if not self.artifacts:
             probability = self._heuristic_probability(normalized)
-            return PredictionResult(
+            result = PredictionResult(
                 transaction_id=normalized["transaction_id"],
                 fraud_probability=probability,
                 model_name=self.model_name,
                 model_loaded=False,
                 source="rules_fallback",
-                features=features,
+                features=raw_features,
             )
+            latency = time.perf_counter() - start
+            _record_metrics(result, latency)
+            return result
 
-        transformed = self.artifacts.preprocessor.transform(features)
+        transformed = self.artifacts.preprocessor.transform(raw_features)
         if hasattr(self.artifacts.model, "predict_proba"):
             probability = float(self.artifacts.model.predict_proba(transformed)[0][1])
         else:
             probability = float(self.artifacts.model.predict(transformed)[0])
-        return PredictionResult(
+        result = PredictionResult(
             transaction_id=normalized["transaction_id"],
             fraud_probability=probability,
             model_name=self.model_name,
             model_loaded=True,
             source="trained_model",
-            features=features,
+            features=self._transformed_feature_frame(transformed),
         )
+        latency = time.perf_counter() - start
+        _record_metrics(result, latency)
+        return result
 
     def explain(self, prediction: PredictionResult) -> Dict[str, Any]:
         if not self.explainer or prediction.features.empty:
             return {"Error": "SHAP Explainer uninitialized or empty vector"}
         return self.explainer.explain_transaction(prediction.features)
+
+    def _transformed_feature_frame(self, transformed: Any) -> pd.DataFrame:
+        """Return the exact feature matrix used by the fitted estimator for SHAP."""
+        if hasattr(transformed, "toarray"):
+            transformed = transformed.toarray()
+        columns = self.artifacts.transformed_feature_names if self.artifacts else []
+        if not columns:
+            columns = [f"feature_{index}" for index in range(transformed.shape[1])]
+        return pd.DataFrame(transformed, columns=columns)
 
     def _build_feature_frame(self, payload: Dict[str, Any]) -> pd.DataFrame:
         if self.feature_store is None:
@@ -106,16 +130,26 @@ class FraudInferenceService:
 
         prepared = {}
         for column in self.artifacts.input_feature_columns:
-            prepared[column] = record.get(column, pd.NA)
+            # None (not pd.NA) so sklearn's imputer receives NaN-compatible values.
+            prepared[column] = record.get(column, None)
         return pd.DataFrame([prepared], columns=self.artifacts.input_feature_columns)
+
+    def normalize_payload(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+        """Normalize an inbound transaction payload for feature building."""
+        return self._normalize_payload(payload)
 
     @staticmethod
     def _normalize_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
         normalized = dict(payload)
         normalized["transaction_id"] = normalized.get("transaction_id") or f"TX_{uuid.uuid4().hex[:12]}"
         normalized["user_id"] = normalized.get("user_id") or normalized.get("account_id")
-        normalized["amount"] = float(normalized.get("amount") or normalized.get("transaction_amount") or 0.0)
-        normalized["transaction_date"] = normalized.get("transaction_date") or normalized.get("transaction_time") or pd.Timestamp.utcnow()
+        amount = normalized.get("amount")
+        if amount is None:
+            amount = normalized.get("transaction_amount")
+        normalized["amount"] = float(amount if amount is not None else 0.0)
+        normalized["transaction_date"] = (
+            normalized.get("transaction_date") or normalized.get("transaction_time") or pd.Timestamp.now(tz="UTC")
+        )
         normalized["currency"] = normalized.get("currency", "USD")
         normalized["status"] = normalized.get("status", "posted")
         normalized["is_international"] = bool(normalized.get("is_international", False))
@@ -132,3 +166,13 @@ class FraudInferenceService:
         if payload.get("is_online"):
             probability += 0.05
         return min(probability, 0.99)
+
+
+def _record_metrics(result: PredictionResult, latency: float) -> None:
+    """Record prediction metrics if monitoring is available."""
+    collector = get_metrics()
+    if collector is not None:
+        try:
+            collector.record_prediction(result, latency)
+        except Exception:  # pragma: no cover - defensive
+            pass
