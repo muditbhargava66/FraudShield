@@ -10,7 +10,7 @@ from typing import Any, Deque, Dict, Iterable, Optional
 
 import pandas as pd
 
-from fraudshield.feature_engineering.transaction_features import parse_windows
+from fraudshield.feature_engineering.transaction_features import pandas_window, parse_windows
 
 
 def _to_timestamp(value: Any) -> pd.Timestamp:
@@ -23,33 +23,24 @@ def _to_timestamp(value: Any) -> pd.Timestamp:
 @dataclass
 class WindowStats:
     window_seconds: float
-    events: Deque[tuple[float, float, Optional[int]]] = field(default_factory=deque)
+    events: Deque[tuple[float, float]] = field(default_factory=deque)
     amount_sum: float = 0.0
-    labeled_count: int = 0
-    fraud_sum: float = 0.0
 
     def _prune(self, timestamp_seconds: float) -> None:
         while self.events and (timestamp_seconds - self.events[0][0]) > self.window_seconds:
-            _, amount, known_fraud = self.events.popleft()
+            _, amount = self.events.popleft()
             self.amount_sum -= amount
-            if known_fraud is not None:
-                self.labeled_count -= 1
-                self.fraud_sum -= float(known_fraud)
 
     def snapshot(self, timestamp_seconds: float) -> dict[str, float]:
         self._prune(timestamp_seconds)
         count = len(self.events)
         mean = self.amount_sum / count if count else 0.0
-        fraud_rate = self.fraud_sum / self.labeled_count if self.labeled_count else 0.0
-        return {"count": float(count), "sum": self.amount_sum, "mean": mean, "fraud_rate": fraud_rate}
+        return {"count": float(count), "sum": self.amount_sum, "mean": mean}
 
-    def record(self, timestamp_seconds: float, amount: float, known_fraud: Optional[int]) -> None:
+    def record(self, timestamp_seconds: float, amount: float) -> None:
         self._prune(timestamp_seconds)
-        self.events.append((timestamp_seconds, amount, known_fraud))
+        self.events.append((timestamp_seconds, amount))
         self.amount_sum += amount
-        if known_fraud is not None:
-            self.labeled_count += 1
-            self.fraud_sum += float(known_fraud)
 
 
 @dataclass
@@ -90,7 +81,7 @@ class StatefulFeatureStore:
 
     def __init__(self, windows: Optional[Iterable[str]] = None) -> None:
         self.windows = parse_windows(windows)
-        self.window_seconds = {window: pd.to_timedelta(window).total_seconds() for window in self.windows}
+        self.window_seconds = {window: pd.to_timedelta(pandas_window(window)).total_seconds() for window in self.windows}
         self.user_windows: Dict[str, Dict[str, WindowStats]] = defaultdict(self._window_map)
         self.merchant_windows: Dict[str, Dict[str, WindowStats]] = defaultdict(self._window_map)
         self.currency_windows: Dict[str, Dict[str, WindowStats]] = defaultdict(self._window_map)
@@ -101,15 +92,9 @@ class StatefulFeatureStore:
         return {window: WindowStats(seconds) for window, seconds in self.window_seconds.items()}
 
     def build_features(self, payload: Dict[str, Any]) -> Dict[str, float]:
-        timestamp = _to_timestamp(payload.get("transaction_date") or payload.get("transaction_time") or pd.Timestamp.utcnow())
+        timestamp = _to_timestamp(payload.get("transaction_date") or payload.get("transaction_time") or pd.Timestamp.now(tz="UTC"))
         timestamp_seconds = timestamp.timestamp()
         amount = float(payload.get("amount", 0.0) or 0.0)
-        known_fraud = payload.get("fraud")
-        if known_fraud is None:
-            known_fraud = payload.get("known_fraud")
-        if known_fraud is not None:
-            known_fraud = int(known_fraud)
-
         features: Dict[str, float] = {}
         user_id = payload.get("user_id") or payload.get("account_id")
         merchant_id = payload.get("merchant_id")
@@ -132,7 +117,6 @@ class StatefulFeatureStore:
                 snapshot = self.merchant_windows[merchant_id][window].snapshot(timestamp_seconds)
                 features[f"merchant_txn_count_{window}"] = snapshot["count"]
                 features[f"merchant_amount_mean_{window}"] = snapshot["mean"]
-                features[f"merchant_fraud_rate_{window}"] = snapshot["fraud_rate"]
             if currency:
                 snapshot = self.currency_windows[currency][window].snapshot(timestamp_seconds)
                 features[f"currency_txn_count_{window}"] = snapshot["count"]
@@ -140,7 +124,7 @@ class StatefulFeatureStore:
                 snapshot = self.status_windows[status][window].snapshot(timestamp_seconds)
                 features[f"status_txn_count_{window}"] = snapshot["count"]
 
-        self.record(payload, timestamp=timestamp, amount=amount, known_fraud=known_fraud)
+        self.record(payload, timestamp=timestamp, amount=amount)
         return features
 
     def record(
@@ -149,9 +133,8 @@ class StatefulFeatureStore:
         *,
         timestamp: Optional[pd.Timestamp] = None,
         amount: Optional[float] = None,
-        known_fraud: Optional[int] = None,
     ) -> None:
-        timestamp = timestamp or _to_timestamp(payload.get("transaction_date") or payload.get("transaction_time") or pd.Timestamp.utcnow())
+        timestamp = timestamp or _to_timestamp(payload.get("transaction_date") or payload.get("transaction_time") or pd.Timestamp.now(tz="UTC"))
         timestamp_seconds = timestamp.timestamp()
         amount = float(amount if amount is not None else payload.get("amount", 0.0) or 0.0)
         user_id = payload.get("user_id") or payload.get("account_id")
@@ -162,13 +145,13 @@ class StatefulFeatureStore:
         if user_id:
             self.user_stats[user_id].record(amount, timestamp)
             for window in self.windows:
-                self.user_windows[user_id][window].record(timestamp_seconds, amount, known_fraud)
+                self.user_windows[user_id][window].record(timestamp_seconds, amount)
         if merchant_id:
             for window in self.windows:
-                self.merchant_windows[merchant_id][window].record(timestamp_seconds, amount, known_fraud)
+                self.merchant_windows[merchant_id][window].record(timestamp_seconds, amount)
         if currency:
             for window in self.windows:
-                self.currency_windows[currency][window].record(timestamp_seconds, amount, known_fraud)
+                self.currency_windows[currency][window].record(timestamp_seconds, amount)
         if status:
             for window in self.windows:
-                self.status_windows[status][window].record(timestamp_seconds, amount, known_fraud)
+                self.status_windows[status][window].record(timestamp_seconds, amount)

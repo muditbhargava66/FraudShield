@@ -43,8 +43,9 @@ def test_transaction_feature_generation_closed_left():
     # User 1 time since last transaction at id=2 is 30 minutes
     assert result.loc[2, "user_time_since_last_txn"] == 1800.0
 
-    # Merchant fraud rate uses past transactions only (merchant 10)
-    assert result.loc[2, "merchant_fraud_rate_1h"] == 0.0
+    # Confirmed-fraud labels are deliberately excluded from model features;
+    # labels arrive after authorization and would otherwise create leakage.
+    assert "merchant_fraud_rate_1h" not in result.columns
 
 
 def test_stateful_feature_store_tracks_history_without_recomputing():

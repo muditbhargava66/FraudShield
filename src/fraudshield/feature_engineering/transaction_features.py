@@ -22,6 +22,13 @@ logger = logging.getLogger(__name__)
 DEFAULT_WINDOWS = ["1h", "24h", "7d", "30d"]
 
 
+def pandas_window(window: str) -> str:
+    """Normalize window units for pandas >= 3.0 ('7d' -> '7D'); feature names keep the original string."""
+    if window.endswith("d"):
+        return window[:-1] + "D"
+    return window
+
+
 @dataclass
 class TransactionFeatureConfig:
     time_column: str = "transaction_date"
@@ -52,7 +59,7 @@ def parse_windows(windows: Optional[Iterable[str]]) -> List[str]:
     parsed: List[str] = []
     for window in windows_list:
         try:
-            pd.to_timedelta(window)
+            pd.to_timedelta(pandas_window(window))
         except Exception as exc:
             raise ValueError(f"Invalid window '{window}'. Use values like 1h, 24h, 7d.") from exc
         parsed.append(window)
@@ -79,7 +86,7 @@ def _rolling_group_agg(
     result = np.empty(len(df), dtype=float)
     grouped = df.groupby(group_col)[[value_col, pos_col]]
     for _, group in grouped:
-        rolled = group[value_col].rolling(window, closed="left").agg(agg)
+        rolled = group[value_col].rolling(pandas_window(window), closed="left").agg(agg)
         positions = group[pos_col].values.astype(int)
         result[positions] = rolled.values
     return result
@@ -147,8 +154,6 @@ def add_transaction_features(df: pd.DataFrame, config: TransactionFeatureConfig)
         for window in windows:
             work_df[f"merchant_txn_count_{window}"] = _rolling_group_agg(work_df, config.merchant_column, config.amount_column, window, "count")
             work_df[f"merchant_amount_mean_{window}"] = _rolling_group_agg(work_df, config.merchant_column, config.amount_column, window, "mean")
-            if config.target_column in work_df.columns:
-                work_df[f"merchant_fraud_rate_{window}"] = _rolling_group_agg(work_df, config.merchant_column, config.target_column, window, "mean")
 
     if config.currency_column in work_df.columns:
         for window in windows:
