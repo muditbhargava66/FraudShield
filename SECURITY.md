@@ -4,6 +4,7 @@
 
 | Version | Supported          |
 |---------|--------------------|
+| 3.0.x   | :white_check_mark: |
 | 2.3.x   | :white_check_mark: |
 | 2.2.x   | :x:                |
 | < 2.2   | :x:                |
@@ -63,12 +64,10 @@ FraudShield implements the following security controls:
 Vulnerable dependencies are tracked and updated regularly. To check for known vulnerabilities:
 
 ```bash
-# Check with pip-audit
-pip install pip-audit
-pip-audit
-
-# Or with uv
-uv pip audit
+# Audit every runtime extra exported from the uv lockfile
+uv export --all-extras --no-dev --no-emit-project --no-hashes --locked \
+  --output-file /tmp/fraudshield-audit-requirements.txt
+uvx pip-audit --no-deps --disable-pip -r /tmp/fraudshield-audit-requirements.txt --strict
 ```
 
 ## Responsible Disclosure

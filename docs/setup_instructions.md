@@ -57,20 +57,30 @@ Step-by-step instructions for setting up FraudShield locally.
 
 4. Run the SQL schema to create the required tables:
    ```bash
-   # The schema is in src/fraudshield/sql/create_tables.sql
-   # It is applied automatically during ingestion
+   # The schema is in src/fraudshield/sql/create_tables.sql.
+   # SQLite ingestion creates the transactions table automatically; apply this
+   # schema explicitly for PostgreSQL when you also need the users table.
    ```
 
 ## Real-Time Infrastructure (Optional)
 
-For the streaming pipeline (Kafka + Neo4j):
+For the streaming pipeline (Kafka + Neo4j + monitoring stack):
 
 ```bash
 cd infra
-docker-compose up -d
+cp ../.env.example ../.env
+# Edit ../.env and replace every password placeholder before continuing.
+docker compose up -d
 ```
 
-This starts Kafka, Zookeeper, and Neo4j. The batch pipeline works without Docker.
+This starts 6 services:
+- **Zookeeper** (port 2181) and **Kafka** (port 9092)
+- **Neo4j** (ports 7474 HTTP, 7687 Bolt)
+- **FraudShield app** (port 8000 FastAPI and `/metrics`)
+- **Prometheus** (port 9091) scraping `fraudshield:8000/metrics`
+- **Grafana** (port 3000; password from `.env`) with Prometheus datasource
+
+The batch pipeline works without Docker.
 
 ## Airflow (Optional)
 
@@ -122,6 +132,18 @@ uv run fraudshield_evaluate --model_path data/models/xgboost.pkl
 | Database connection errors | Check `FRAUDSHIELD_DATABASE_URL` environment variable |
 | Import errors for Airflow operators | Install with `uv pip install -e ".[airflow]"` |
 | Feature values look wrong | This is expected — rolling windows use `closed="left"` to prevent data leakage |
+| Prometheus metrics not appearing | Set `FRAUDSHIELD_MONITORING_ENABLED=true` and request `http://localhost:8000/metrics` |
+| Grafana shows no data | Ensure Prometheus datasource is configured at `http://prometheus:9090` |
+
+## Verification
+
+Run the comprehensive v3.0.0 component verification:
+
+```bash
+uv run python scripts/verify_v3_components.py
+```
+
+This runs 43 checks across all modules: fraud ring detection, Prometheus metrics, broker abstraction, drift hooks, risk engine, Docker config, and v2.x integration.
 
 ## Support
 

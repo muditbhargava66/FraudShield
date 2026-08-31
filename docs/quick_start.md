@@ -1,6 +1,6 @@
 # FraudShield - Quick Start Guide
 
-**30/30 tests passing** | Lint: ruff + mypy
+**68/68 tests passing** | Lint: ruff + mypy |
 
 ---
 
@@ -122,5 +122,57 @@ airflow db migrate
 airflow webserver --port 8080 &
 airflow scheduler &
 ```
+
+---
+
+## v3.0.0 Features
+
+### Verify All Components
+
+```bash
+uv run python scripts/verify_v3_components.py
+```
+
+Runs 43 checks validating fraud ring detection, Prometheus metrics, broker abstraction, drift hooks, risk engine integration, and Docker configuration.
+
+### Prometheus Monitoring
+
+```bash
+# Enable metrics (enabled by default)
+export FRAUDSHIELD_MONITORING_ENABLED=true
+export FRAUDSHIELD_MONITORING_METRICS_PATH=/metrics
+
+# Start the real-time pipeline (metrics server starts automatically on port 9090)
+uv run python -m fraudshield.main
+```
+
+### Fraud Ring Detection
+
+```python
+from fraudshield.graph.fraud_ring_detector import FraudRingDetector
+
+# Requires a running Neo4j instance
+detector = FraudRingDetector(neo4j_driver, min_ring_size=3)
+rings = detector.detect_rings(account_id="U_102")
+risk = detector.assess_account(account_id="U_102")
+```
+
+### Broker Abstraction (Kafka / Redpanda)
+
+```bash
+# Switch broker backend via environment variable
+export FRAUDSHIELD_KAFKA_BROKER_TYPE=redpanda  # or "kafka" (default)
+```
+
+### Full Stack with Docker
+
+```bash
+cd infra
+cp ../.env.example ../.env
+# Edit ../.env and replace every password placeholder before continuing.
+docker compose up -d
+```
+
+Starts: Kafka + Zookeeper, Neo4j, FraudShield app (port 8000), Prometheus (port 9091), Grafana (port 3000).
 
 ---

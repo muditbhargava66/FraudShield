@@ -5,6 +5,77 @@ All notable changes to FraudShield are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.0.0] - 2026-09-01
+
+### Added
+- `.gitattributes` for GitHub Linguist language detection overrides.
+- **Fraud ring detection** (`graph/fraud_ring_detector.py`): Louvain community detection on Neo4j 2-hop neighborhood subgraphs to identify coordinated fraud rings connected via shared devices/IPs.
+- `FraudRing` dataclass with `ring_id`, `member_accounts`, `shared_entities`, `risk_score`, and `density`.
+- `FraudRingDetector.assess_account()` returns the max ring risk score for an account, integrated into `HybridRiskEngine` as an optional `ring_detector` parameter.
+- **Prometheus monitoring** (`monitoring/metrics.py`): `MetricsCollector` with counters (transactions_total, risk_level_total), histograms (inference_latency_seconds, fraud_probability), and gauges (active_fraud_rings, drift_ratio, drifted_features). Uses per-instance `CollectorRegistry` for test isolation.
+- **Drift detection hooks** (`monitoring/drift_hooks.py`): `run_drift_check_with_metrics()` wraps KS-test logic with Prometheus emission; `streaming_drift_monitor()` uses lightweight z-score comparison for streaming features.
+- **Streaming broker abstraction** (`streaming/broker.py`): `BrokerFactory` ABC with `KafkaBrokerFactory` and `RedpandaBrokerFactory`. Both use `confluent-kafka` (Kafka wire protocol). Redpanda factory adds `SASL_SSL`/`SCRAM-SHA-256` defaults.
+- `MonitoringSettings` dataclass with `enabled`, `port`, and `metrics_path` fields.
+- `broker_type` field on `KafkaSettings` (env: `FRAUDSHIELD_KAFKA_BROKER_TYPE`, default `"kafka"`).
+- `HybridRiskEngine` now accepts optional `ring_detector` and `account_id` parameter on `evaluate_transaction()`.
+- Inference service wraps `predict()` with `time.perf_counter()` latency timing and automatic metrics recording.
+- `Dockerfile` for the application (Python 3.10 slim, uv-based build with CMake for C++ extensions). Fixed to include `README.md`, `CMakeLists.txt`, and full `src/` before `uv sync`.
+- `.dockerignore` to exclude build artifacts, IDE configs, notebooks, and docs from Docker build context.
+- `infra/prometheus.yml` scrape configuration targeting `fraudshield:8000/metrics`.
+- Docker Compose services: `fraudshield` (app), `prometheus` (v2.47.0), `grafana` (10.1.0).
+- `networkx>=3.2` and `prometheus_client>=0.21.0` added to core dependencies.
+- **Updated `main.py`** (`RealTimeOrchestrator`): v3.0.0 integration with ring detector auto-wiring into risk engine, Prometheus metrics server startup, transaction metric recording, and account ID extraction for ring assessment.
+- **Verification script** (`scripts/verify_v3_components.py`): 43-check comprehensive validation of all v3.0.0 components and their integration with v2.x components.
+- **Performance benchmark** (`scripts/benchmark_performance.py`): TPS/latency benchmark covering the C++ cleaning wrapper, inference service, graph operations, and hybrid risk engine.
+
+### Changed
+- `HybridRiskEngine.evaluate_transaction()` signature extended with `account_id` parameter (backward compatible, defaults to `""`).
+- Kafka advertised listeners in docker-compose updated to support both internal (`kafka:29092`) and external (`localhost:9092`) access.
+- Removed obsolete `version` attribute from `infra/docker-compose.yml`.
+- `Resources.py` now exposes `create_producer_via_broker()` and `create_consumer_via_broker()` convenience functions.
+
+### Fixed
+- Fixed missing `broker_type` attribute in `KafkaSettings` (`src/fraudshield/config/settings.py`) which caused mypy failures.
+- Resolved numpy `bool_` to python `bool` typecasting issue in `streaming_drift_monitor` (`src/fraudshield/monitoring/drift_hooks.py`).
+- Wired the Kafka/Redpanda broker factory into the producer and consumer, so `FRAUDSHIELD_KAFKA_BROKER_TYPE` now changes live connection settings.
+- Made the API use the same ML + graph + rule hybrid assessment as the stream.
+- Exposed the Prometheus collector's private registry through both FastAPI and the standalone streaming metrics server.
+- Routed Airflow drift checks through the shared metrics-aware implementation and aligned default ingestion with the `transactions` schema.
+- Passed transformed model features—not raw input columns—to SHAP explainers.
+- Graph repository no longer crashes Neo4j when `device_id`/`ip_address` are absent: entity MERGEs are conditional, and payloads missing `transaction_id` or `user_id`/`account_id` fail fast with a clear error.
+- `KafkaBrokerFactory` now wires `sasl.username`/`sasl.password` (with `SASL_SSL`/`PLAIN` defaults) when SASL credentials are configured; previously they were silently dropped.
+- Fraud ring detection now connects neighbors that share a device/IP with each other instead of building target-only star graphs, and `shared_id` resolves for shared IP addresses (`coalesce(shared.id, shared.address)`).
+- Kafka consumer commits every offset explicitly and records a `failed` transaction metric for decode/processing failures instead of silently dropping messages.
+- `create_tables.sql` is idempotent (`CREATE INDEX IF NOT EXISTS`) and `transaction_date` is `TIMESTAMP` per the data dictionary.
+- Payload normalization no longer treats a legitimate `amount` of `0` as missing, and deprecated `pd.Timestamp.utcnow()` calls were replaced with `pd.Timestamp.now(tz="UTC")`.
+- PostgreSQL integration test only skips on connectivity failures instead of masking any error as a skip.
+- Inference feature frame now passes `None` instead of `pd.NA` for missing input columns, fixing a `TypeError` in the sklearn imputer that turned `/predict` into a 500 whenever a payload omitted model input columns.
+- Normalized rolling-window units for pandas >= 3.0 (`7d` → `7D` at parse time only) via a new `pandas_window()` helper, removing deprecation warnings from `parse_windows`, rolling aggregates, and the stateful feature store.
+
+### Security
+- Pinned `starlette>=1.3.1` in override-dependencies to resolve High severity CVE-2026-54283.
+- Pinned `pydantic-settings>=2.14.2` in override-dependencies to resolve Moderate severity GHSA-4xgf-cpjx-pc3j.
+- Updated the optional Apache Airflow integration to `>=3.3.1` to resolve five known advisories in 3.2.2 plus eight PYSEC-2026 advisories in 3.3.0.
+- Updated the lockfile to Click 8.4.2 and Pillow 12.3.0, resolving the known advisories for Click 8.3.1 and Pillow 12.2.0.
+- Pinned `cryptography>=50.0.0` to resolve the High severity PKCS#7 Bleichenbacher oracle advisory (GHSA-g6cj-pr64-35w5).
+- Pinned `sqlparse>=0.6.0` to resolve four advisories (ReDoS/CPU DoS/quadratic grouping/snippet breakout).
+- Pinned `aiosmtplib>=5.1.2` to resolve the STARTTLS response injection advisory (GHSA-vxj7-4xrp-5vr4).
+- Pinned `setuptools>=83.0.0` to resolve the MANIFEST.in Unicode normalization bypass (GHSA-h35f-9h28-mq5c).
+- Removed the unused Snowflake Airflow provider and its large transitive tree.
+- Removed the orphaned `pyopenssl` override-dependencies entry (package is not in the dependency graph).
+- Removed embedded Docker Compose credentials, disabled unneeded Neo4j APOC file import/export settings, bound development ports to loopback, and run the application image as an unprivileged user.
+- Prevented caller-controlled fraud labels from entering online features and removed label-derived merchant fraud-rate features to avoid poisoning and target leakage.
+
+### Tests
+- `test_fraud_ring_detector.py`: 14 tests covering subgraph extraction, ring detection, neighbor-to-neighbor graph construction, graceful degradation, risk scoring, and ring ID determinism.
+- `test_monitoring_metrics.py`: 13 tests covering collector initialization, prediction recording, drift monitoring, and singleton behavior.
+- `test_broker_abstraction.py`: 19 tests covering Kafka/Redpanda factory creation, config defaults, overrides, SASL credential wiring, dispatcher, and convenience functions.
+- `test_graph_repository.py`: 6 tests covering upsert validation, null device/IP handling, and entity risk scoring.
+- `test_kafka_consumer.py`: 3 tests covering commit behavior on success, handler failure, and malformed payloads.
+- `test_inference_api.py`: 2 tests covering the hybrid prediction flow and metrics availability.
+- `test_postgresql.py`: integration test validating ingestion against a live PostgreSQL instance (skips when `FRAUDSHIELD_DATABASE_URL` is unset).
+- `test_realtime_architecture.py`: 2 new tests for ring detector integration in `HybridRiskEngine`.
+
 ## [2.3.0] - 2026-06-15
 
 ### Added

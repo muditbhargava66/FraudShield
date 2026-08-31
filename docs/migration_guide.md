@@ -1,4 +1,4 @@
-# Migration Guide: v2.2.0 → v2.3.0
+# Migration Guide: v2.2.0 → v2.3.0 → v3.0.0
 
 ## Overview of Changes
 
@@ -108,6 +108,72 @@ At default threshold (0.5), recall is low because fraud detection typically requ
 
 ```bash
 git checkout version-2.2.0
+uv pip install -e .
+uv run fraudshield_ingest
+uv run fraudshield_preprocess
+uv run fraudshield_train --model both
+```
+
+---
+
+## v2.3.0 → v3.0.0
+
+### Overview of Changes
+
+- **Fraud ring detection**: New `graph/fraud_ring_detector.py` with Louvain community detection on Neo4j 2-hop subgraphs
+- **Prometheus monitoring**: New `monitoring/metrics.py` with counters, histograms, and gauges
+- **Drift hooks**: New `monitoring/drift_hooks.py` with KS-test + streaming z-score hooks
+- **Broker abstraction**: New `streaming/broker.py` with `BrokerFactory` ABC supporting Kafka and Redpanda
+- **Docker stack**: New `Dockerfile`, Prometheus, and Grafana services in docker-compose
+- **Dependencies**: Added `networkx>=3.2` and `prometheus_client>=0.21.0`
+
+### Breaking Changes
+
+**None.** All v3.0.0 changes are additive:
+- `HybridRiskEngine.evaluate_transaction()` gains an optional `account_id` parameter (defaults to `""`).
+- `KafkaSettings` gains a `broker_type` field (defaults to `"kafka"`).
+- `RuntimeSettings` gains a `monitoring: MonitoringSettings` field (defaults to enabled on port 9090).
+
+### Migration Steps
+
+```bash
+# 1. Pull latest
+git checkout version-3.0.0
+
+# 2. Reinstall (picks up networkx + prometheus_client)
+uv sync
+
+# 3. Verify all components
+uv run python scripts/verify_v3_components.py
+
+# 4. Run full pipeline (unchanged)
+uv run fraudshield_ingest
+uv run fraudshield_preprocess
+uv run fraudshield_train --model both
+uv run fraudshield_evaluate --model_path data/models/xgboost.pkl
+
+# 5. Verify quality
+uv run pytest tests/ -v
+uv run ruff check src tests
+uv run mypy src/
+
+# 6. (Optional) Start full Docker stack
+cd infra && docker compose up -d
+```
+
+### New Environment Variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `FRAUDSHIELD_MONITORING_ENABLED` | `true` | Enable Prometheus metrics |
+| `FRAUDSHIELD_MONITORING_PORT` | `9090` | Metrics HTTP port |
+| `FRAUDSHIELD_MONITORING_METRICS_PATH` | `/metrics` | Metrics URL path |
+| `FRAUDSHIELD_KAFKA_BROKER_TYPE` | `kafka` | Broker backend (`kafka` or `redpanda`) |
+
+### Rollback
+
+```bash
+git checkout version-2.3.0
 uv pip install -e .
 uv run fraudshield_ingest
 uv run fraudshield_preprocess

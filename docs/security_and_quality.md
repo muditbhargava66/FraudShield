@@ -31,13 +31,13 @@ df = pd.read_sql(query, engine, params={'start': start_date, 'end': end_date})
 
 ### Credential Management
 
-Credentials loaded from environment variables, never hardcoded:
+Credentials are loaded from environment variables and required for non-local services; Docker Compose consumes values from an untracked `.env` file:
 
 ```python
 db_config = {
-    'user': os.getenv('TEST_DB_USER', 'test_user'),
-    'password': os.getenv('TEST_DB_PASSWORD', 'test_password'),
-    'host': os.getenv('TEST_DB_HOST', 'localhost'),
+    'user': os.environ['FRAUDSHIELD_DB_USER'],
+    'password': os.environ['FRAUDSHIELD_DB_PASSWORD'],
+    'host': os.environ['FRAUDSHIELD_DB_HOST'],
 }
 ```
 
@@ -98,6 +98,15 @@ test_df = working_data.iloc[split_index:]
 ### Duplicate Index Handling
 
 The feature engine uses integer position columns (`__pos__`) to map groupby results back to the correct rows. This prevents alignment errors when the DatetimeIndex has duplicate timestamps (common with 5000+ transactions over a 60-day window).
+
+### Delayed Fraud Labels
+
+The API and streaming feature store never accept a caller-supplied `fraud` or
+`known_fraud` value. Confirmed labels arrive after authorization, so using one
+as a live feature would both leak future information during training and let an
+untrusted caller poison later merchant statistics. Label-derived merchant fraud
+rates are excluded from the training and online feature sets until a trusted,
+versioned delayed-label store is introduced.
 
 ## C++ Module Safety
 

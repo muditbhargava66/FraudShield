@@ -1,0 +1,33 @@
+# Linguist overrides for GitHub language detection
+# FraudShield is a Python project; C++ and SQL are auxiliary components.
+
+# C++ extensions are auxiliary, not primary language
+*.cpp linguist-detectable=false
+*.h linguist-detectable=false
+
+# CMake build configuration
+CMakeLists.txt linguist-detectable=false
+*.cmake linguist-detectable=false
+
+# SQL schemas are documentation
+*.sql linguist-detectable=false
+
+# Lock files and generated dependency metadata
+uv.lock linguist-generated=true linguist-detectable=false
+*.lock linguist-generated=true linguist-detectable=false
+
+# Jupyter notebooks are documentation, not source code
+*.ipynb linguist-detectable=false
+
+# Binary data artifacts
+*.npy linguist-generated=true linguist-detectable=false
+*.pkl linguist-generated=true linguist-detectable=false
+*.joblib linguist-generated=true linguist-detectable=false
+*.png linguist-generated=true linguist-detectable=false
+*.db linguist-generated=true linguist-detectable=false
+
+# Vendored / third-party configuration
+.airflow/** linguist-vendored=true linguist-detectable=false
+.tox/** linguist-vendored=true linguist-detectable=false
+.venv/** linguist-vendored=true linguist-detectable=false
+build/** linguist-generated=true linguist-detectable=false

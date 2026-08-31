@@ -37,8 +37,9 @@ Four CLI entry points run sequentially:
 - **Kafka consumer** polls messages and passes them to the inference service.
 - **Inference service** normalizes payloads, builds stateful rolling-window features, runs model prediction. Falls back to heuristic scoring when no model is loaded.
 - **Graph builder** upserts transactions into Neo4j and computes entity risk.
-- **Hybrid risk engine** blends ML score (0.6), graph score (0.25), and rule breaches (0.15).
+- **Hybrid risk engine** blends ML score (0.6), graph score (0.3), and rule breaches (0.1). Optional ring detector boosts graph score when coordinated fraud rings are detected.
 - **SHAP explainability** provides per-transaction feature contributions for high-risk cases.
+- **Prometheus metrics** emitted automatically: transaction throughput, inference latency, fraud probability distribution, risk levels, active fraud rings, and data drift ratio.
 
 ### Inference API
 
@@ -49,12 +50,15 @@ FastAPI app with two endpoints:
 ## Key Features
 
 - **Kafka & Neo4j integration** for real-time streaming and graph-based entity analysis
+- **Fraud ring detection** via Louvain community detection on Neo4j 2-hop neighborhood subgraphs (shared devices/IPs connecting accounts)
+- **Prometheus monitoring** with counters, histograms, and gauges for transactions, inference latency, fraud probability, risk levels, and drift ratios
 - **Explainable AI** via SHAP (TreeSHAP) for transparent scoring
 - **Data drift validation** (KS test) in the Airflow DAG to catch distributional shifts before retraining
 - **Data leakage prevention** in feature engineering (`closed="left"` rolling windows, `shift(1)` z-scores)
 - **Time-based train/test split** to prevent temporal leakage
 - **Class balancing** in model training (`scale_pos_weight`, balanced subsampling)
-- **Stateful streaming aggregates** for real-time rolling counts, sums, means, and fraud rates
+- **Stateful streaming aggregates** for real-time rolling counts, sums, and means without accepting caller-supplied fraud labels
+- **Pluggable broker abstraction** supporting Kafka and Redpanda backends via factory pattern
 - **Optional Airflow DAG** for orchestration with runtime variable fetching
 - **C++ acceleration** for data cleaning via pybind11 (feature engineering C++ is experimental)
 - **FastAPI inference API** for real-time predictions
@@ -129,6 +133,38 @@ Run the inference API locally:
 uvicorn fraudshield.ml.inference.api:app --reload
 ```
 
+## Docker
+
+The project includes a Dockerfile and docker-compose setup with Kafka, Neo4j, Prometheus, and Grafana:
+
+```bash
+docker compose -f infra/docker-compose.yml up --build
+```
+
+Services:
+- **fraudshield** (port 8000): FastAPI inference API and Prometheus metrics at `/metrics`
+- **kafka** (port 9092): Apache Kafka broker
+- **neo4j** (ports 7474, 7687): Graph database
+- **prometheus** (port 9091): Metrics collection and alerting
+- **grafana** (port 3000): Dashboards and visualization
+
+Before starting the stack, copy `.env.example` to `.env`, replace every placeholder with a unique secret, and ensure the PostgreSQL URL contains the URL-encoded database password. All ports bind to `127.0.0.1` by default.
+
+## Monitoring
+
+Prometheus metrics are emitted automatically when `FRAUDSHIELD_MONITORING_ENABLED=true`:
+
+| Metric | Type | Labels | Description |
+|--------|------|--------|-------------|
+| `fraudshield_transactions_total` | Counter | source, status | Total transactions processed |
+| `fraudshield_inference_latency_seconds` | Histogram | model_name, source | Inference latency per prediction |
+| `fraudshield_fraud_probability` | Histogram | — | Distribution of fraud probability scores |
+| `fraudshield_risk_level_total` | Counter | level | Predictions grouped by risk level (HIGH/MEDIUM/LOW) |
+| `fraudshield_active_fraud_rings` | Gauge | — | Current number of detected fraud rings |
+| `fraudshield_drift_ratio` | Gauge | — | Latest data drift ratio from KS-test |
+
+Grafana is available at `localhost:3000`; use the password configured in `.env`.
+
 ## Preprocessing & Feature Engineering
 
 `fraudshield_preprocess` will:
@@ -162,6 +198,9 @@ export FRAUDSHIELD_KAFKA_BOOTSTRAP_SERVERS=localhost:9092
 export FRAUDSHIELD_NEO4J_URI=neo4j://localhost:7687
 export FRAUDSHIELD_NEO4J_USERNAME=neo4j
 export FRAUDSHIELD_NEO4J_PASSWORD=your_password
+export FRAUDSHIELD_KAFKA_BROKER_TYPE=kafka      # or "redpanda"
+export FRAUDSHIELD_MONITORING_ENABLED=true       # enable Prometheus metrics
+export FRAUDSHIELD_MONITORING_PORT=9090         # metrics HTTP port
 ```
 
 ## Airflow (Optional)
