@@ -84,6 +84,21 @@ result = engine.evaluate_transaction(
 
 The ring score replaces the graph score only when it is higher (`graph_score = max(graph_score, ring_score)`).
 
+The composite score blends three signals with default weights:
+
+| Signal | Weight |
+|--------|--------|
+| ML model (`ml_score`) | 0.6 |
+| Graph (`graph_score`, including ring score) | 0.3 |
+| Rules (`rules_breached / max_rules`, three built-in rules) | 0.1 |
+
+Overrides and risk levels in `evaluate_transaction()`:
+
+- If all rules breach (`rules_breached >= max_rules`) or `graph_score >= 0.95`,
+  the composite score is raised to at least 0.95.
+- `HIGH` >= 0.75 (action `BLOCK`), `MEDIUM` >= 0.40, otherwise `LOW` (action `ALLOW`).
+- Weights are normalized if they do not sum to 1.0; negative or non-finite weights raise `ValueError`.
+
 ## Graceful Degradation
 
 - If Neo4j is unreachable, `extract_subgraph()` returns an empty list and `assess_account()` returns 0.0

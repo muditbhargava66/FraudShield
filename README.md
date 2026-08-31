@@ -255,9 +255,17 @@ make typecheck   # mypy
 
 ### Notebooks
 
-- **[Pipeline Tutorial](notebooks/01_fraudshield_pipeline_tutorial.ipynb)** — End-to-end walkthrough
-- **[Exploratory Data Analysis](notebooks/exploratory_data_analysis.ipynb)** — Data exploration and visualization
-- **[Model Experimentation](notebooks/model_experimentation.ipynb)** — Training and hyperparameter tuning
+- **[Pipeline Tutorial](notebooks/01_fraudshield_pipeline_tutorial.ipynb)** — End-to-end batch pipeline: ingestion, preprocessing, drift gate, XGBoost training, evaluation, scoring a new event, and SHAP explanations
+- **[Real-Time Streaming & Graph](notebooks/02_realtime_streaming_and_graph.ipynb)** — Kafka/Redpanda broker factories, stateful streaming features, Louvain fraud-ring detection, hybrid risk scoring, and the in-process inference API
+- **[Exploratory Data Analysis](notebooks/exploratory_data_analysis.ipynb)** — Fraud balance, amount and temporal patterns, merchant/channel risk, and rolling-feature correlations
+- **[Model Experimentation](notebooks/model_experimentation.ipynb)** — Class-weighting experiments, decision-threshold sweep for best F1, and a Random Forest baseline
+
+All four execute cleanly end-to-end against the v3.0.0 codebase.
+
+### Scripts
+
+- `scripts/benchmark_performance.py` — TPS/latency benchmarks for C++ vs. NumPy data cleaning, the stateful feature store, the inference service, the hybrid risk engine, and Neo4j writes (live when reachable, simulated otherwise)
+- `scripts/verify_v3_components.py` — 43-check validation harness covering every v3.0.0 component and its integration with the batch pipeline
 
 ## C++ Extensions
 

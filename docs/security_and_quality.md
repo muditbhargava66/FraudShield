@@ -31,21 +31,53 @@ df = pd.read_sql(query, engine, params={'start': start_date, 'end': end_date})
 
 ### Credential Management
 
-Credentials are loaded from environment variables and required for non-local services; Docker Compose consumes values from an untracked `.env` file:
+Secrets are supplied through environment variables, never hardcoded:
 
-```python
-db_config = {
-    'user': os.environ['FRAUDSHIELD_DB_USER'],
-    'password': os.environ['FRAUDSHIELD_DB_PASSWORD'],
-    'host': os.environ['FRAUDSHIELD_DB_HOST'],
-}
-```
+- The primary connection string comes from `FRAUDSHIELD_DATABASE_URL`
+  (resolved in `fraudshield/config/settings.py`); defaults to a local SQLite file.
+- `DataRetrieval` (`sql/data_retrieval.py`) also accepts a `db_config` mapping and
+  builds the connection with `URL.create()` so credentials are never interpolated
+  into f-strings.
+- Broker credentials use `FRAUDSHIELD_KAFKA_SASL_USERNAME` /
+  `FRAUDSHIELD_KAFKA_SASL_PASSWORD`; Neo4j uses `FRAUDSHIELD_NEO4J_PASSWORD`.
+
+`.env` files are gitignored (`.env` and `.env.*` are excluded, only `.env.example`
+is committed). The Docker Compose stack reads `infra/.env` and fails fast (`:?`
+modifier) if `FRAUDSHIELD_NEO4J_PASSWORD`, `FRAUDSHIELD_POSTGRES_PASSWORD`,
+`FRAUDSHIELD_DATABASE_URL`, or `FRAUDSHIELD_GRAFANA_ADMIN_PASSWORD` is missing,
+so no placeholder password can reach a running stack.
 
 ### Linting and Type Safety
 
 - **ruff**: Linting and formatting (replaces flake8, pylint, black)
 - **mypy**: Static type checking with `check_untyped_defs = true`
 - Run both with `make lint && make typecheck`
+
+### Dependency Supply Chain
+
+- Dependencies resolve through **uv** with a committed `uv.lock`; CI and the
+  Docker image install with `uv sync --frozen` so builds reproduce the audited lockfile.
+- Known-vulnerable transitive dependencies are force-upgraded via
+  `[tool.uv] override-dependencies` in `pyproject.toml`:
+  `aiosmtplib>=5.1.2`, `apache-airflow-providers-smtp>=3.0.0`,
+  `cryptography>=50.0.0`, `click>=8.3.3`, `idna>=3.15`, `mako>=1.3.11`,
+  `pillow>=12.3.0`, `pydantic-settings>=2.14.2`, `pygments>=2.20.0`,
+  `requests>=2.33.0`, `setuptools>=83.0.0`, `sqlparse>=0.6.0`,
+  `starlette>=1.3.1`, `urllib3>=2.7.0`.
+- CI runs a **pip-audit gate** (`.github/workflows/ci.yml`, `dependency-audit`
+  job): `uv export --all-extras --no-dev --locked` writes the resolved
+  requirements, then `uvx pip-audit --no-deps --disable-pip --strict` fails the
+  build on any known vulnerability.
+
+### Container and Network Hardening
+
+- The `Dockerfile` creates a dedicated `fraudshield` system user and drops
+  privileges with `USER fraudshield` before serving; the image is built
+  multi-stage with `uv sync --no-dev --frozen`.
+- Every host port in `infra/docker-compose.yml` is bound to `127.0.0.1`
+  (Zookeeper 2181, Kafka 9092, Neo4j 7474/7687, PostgreSQL 5432, app 8000,
+  Prometheus 9091, Grafana 3000), so the local stack is not reachable from
+  other machines.
 
 ## Data Leakage Prevention
 
@@ -78,7 +110,7 @@ def _rolling_group_agg(df, group_col, value_col, window, agg, pos_col="__pos__")
     result = np.empty(len(df), dtype=float)
     grouped = df.groupby(group_col)[[value_col, pos_col]]
     for _, group in grouped:
-        rolled = group[value_col].rolling(window, closed="left").agg(agg)
+        rolled = group[value_col].rolling(pandas_window(window), closed="left").agg(agg)
         positions = group[pos_col].values.astype(int)
         result[positions] = rolled.values
     return result

@@ -5,6 +5,7 @@ Step-by-step instructions for setting up FraudShield locally.
 ## Prerequisites
 
 - Python 3.10+
+- [uv](https://docs.astral.sh/uv/) — recommended dependency manager (the repo ships `pyproject.toml` + `uv.lock`)
 - C++ compiler (GCC 7+ or Clang 5+) — only needed for C++ extensions
 - Docker and Docker Compose — only for Kafka/Neo4j real-time streaming
 - Apache Airflow — optional, for DAG-based orchestration
@@ -68,17 +69,22 @@ For the streaming pipeline (Kafka + Neo4j + monitoring stack):
 
 ```bash
 cd infra
-cp ../.env.example ../.env
-# Edit ../.env and replace every password placeholder before continuing.
+# Docker Compose reads .env from its own directory, so create it here
+cp ../.env.example .env
+# Edit .env and replace every password placeholder before continuing.
+# Required by compose (startup fails if missing): FRAUDSHIELD_NEO4J_PASSWORD,
+# FRAUDSHIELD_POSTGRES_PASSWORD, FRAUDSHIELD_DATABASE_URL,
+# FRAUDSHIELD_GRAFANA_ADMIN_PASSWORD
 docker compose up -d
 ```
 
-This starts 6 services:
-- **Zookeeper** (port 2181) and **Kafka** (port 9092)
-- **Neo4j** (ports 7474 HTTP, 7687 Bolt)
+This starts 7 services (all host ports bind to 127.0.0.1):
+- **Zookeeper** (port 2181) and **Kafka** (port 9092, Confluent 7.5.0)
+- **Neo4j** 5.12.0 (ports 7474 HTTP, 7687 Bolt)
+- **PostgreSQL** 15 (port 5432, user `fraudshield`, database `fraudshield_db`)
 - **FraudShield app** (port 8000 FastAPI and `/metrics`)
-- **Prometheus** (port 9091) scraping `fraudshield:8000/metrics`
-- **Grafana** (port 3000; password from `.env`) with Prometheus datasource
+- **Prometheus** (host port 9091 -> 9090) scraping `fraudshield:8000/metrics`
+- **Grafana** (port 3000; admin password from `infra/.env`) with Prometheus datasource
 
 The batch pipeline works without Docker.
 
@@ -134,6 +140,8 @@ uv run fraudshield_evaluate --model_path data/models/xgboost.pkl
 | Feature values look wrong | This is expected — rolling windows use `closed="left"` to prevent data leakage |
 | Prometheus metrics not appearing | Set `FRAUDSHIELD_MONITORING_ENABLED=true` and request `http://localhost:8000/metrics` |
 | Grafana shows no data | Ensure Prometheus datasource is configured at `http://prometheus:9090` |
+| `docker compose up` fails with "required variable ... is missing" | Create `infra/.env` (compose reads `.env` from its own directory) with `FRAUDSHIELD_NEO4J_PASSWORD`, `FRAUDSHIELD_POSTGRES_PASSWORD`, `FRAUDSHIELD_DATABASE_URL`, `FRAUDSHIELD_GRAFANA_ADMIN_PASSWORD` |
+| PostgreSQL integration test skips or fails | `tests/integration_tests/test_postgresql.py` needs a live database; it skips unless `FRAUDSHIELD_DATABASE_URL` points at a reachable PostgreSQL instance |
 
 ## Verification
 

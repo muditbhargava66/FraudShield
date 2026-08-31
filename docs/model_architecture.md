@@ -19,10 +19,12 @@ Raw CSV → Ingestion (SQLite) → Preprocessing → Feature Engineering → Dat
 
 Requires Docker (Kafka + Neo4j):
 
-1. **Streaming Ingestion**: Transactions consumed via Kafka at configurable throughput
-2. **Neo4j Graph Tracking**: Entities (devices, IPs, accounts) tracked as graph nodes to detect ring fraud
-3. **Hybrid Risk Engine**: Blends ML (0.6), graph (0.25), and rule (0.15) scores into a final risk value
-4. **SHAP Explainability**: TreeExplainer generates per-prediction feature attributions
+1. **Streaming Ingestion**: Transactions consumed via Kafka (or Redpanda through the `streaming/broker.py` abstraction) at configurable throughput
+2. **Stateful Features**: `StatefulFeatureStore` computes rolling window aggregates in O(1) amortized time per event
+3. **Neo4j Graph Tracking**: Entities (devices, IPs, accounts) tracked as graph nodes; entity risk plus Louvain fraud ring detection feed the graph score
+4. **Hybrid Risk Engine**: Blends ML (0.6), graph (0.3), and rule (0.1) scores into a final risk value; overrides to >= 0.95 when all rules breach or the graph score >= 0.95. Risk levels: HIGH >= 0.75 (BLOCK), MEDIUM >= 0.40, else LOW (ALLOW)
+5. **Monitoring**: Prometheus counters/histograms/gauges recorded for each prediction and drift check
+6. **SHAP Explainability**: TreeExplainer generates per-prediction feature attributions for HIGH-risk transactions
 
 ## ML Models
 
@@ -61,7 +63,6 @@ Computed per-entity (user, merchant, currency, status) with windows `[1h, 24h, 7
 | `*_txn_count_{window}` | count | `closed="left"` excludes current row |
 | `*_amount_sum_{window}` | sum | `closed="left"` |
 | `*_amount_mean_{window}` | mean | `closed="left"` |
-| `*_fraud_rate_{window}` | mean | `closed="left"` (merchant only) |
 
 ### Behavioral Features
 
@@ -92,5 +93,9 @@ Trained models are loaded by `FraudInferenceService` for:
 - **Batch scoring**: Via CLI `fraudshield_evaluate`
 - **Real-time API**: FastAPI endpoint at `/predict`
 - **Kafka consumer**: Processes streaming events with the same preprocessor and model
+
+The Airflow `model_deployment` task (`run_model_deployment` in
+`data_pipeline/pipeline_tasks.py`) validates that the model, preprocessor, and
+metadata artifacts load cleanly before the API serves them.
 
 ---

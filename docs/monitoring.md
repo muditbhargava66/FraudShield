@@ -18,7 +18,7 @@ Metrics collection uses a per-instance `CollectorRegistry` to avoid registration
 
 | Metric | Labels | Description |
 |--------|--------|-------------|
-| `fraudshield_transactions_total` | `source` (streaming/batch), `status` (processed/failed) | Total transactions processed |
+| `fraudshield_transactions_total` | `source` (e.g. `streaming`, `trained_model`, `rules_fallback`), `status` (`processed`/`failed`) | Total transactions processed |
 | `fraudshield_risk_level_total` | `level` (HIGH/MEDIUM/LOW) | Predictions grouped by assigned risk level |
 
 ### Histograms
@@ -59,8 +59,8 @@ Recording is a silent no-op when `prometheus_client` is not installed or when th
 ## Docker Integration
 
 The Docker Compose stack includes:
-- **Prometheus** (port 9091): Scrapes `fraudshield:8000/metrics` every 15 seconds
-- **Grafana** (port 3000): Uses the administrator password supplied through `.env`
+- **Prometheus** (host port 9091 -> container 9090): Scrapes `fraudshield:8000/metrics` every 15 seconds
+- **Grafana** (port 3000): Uses the administrator password supplied through `infra/.env` (`FRAUDSHIELD_GRAFANA_ADMIN_PASSWORD`)
 
 Scrape configuration is in `infra/prometheus.yml`.
 

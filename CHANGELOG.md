@@ -27,12 +27,14 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - **Updated `main.py`** (`RealTimeOrchestrator`): v3.0.0 integration with ring detector auto-wiring into risk engine, Prometheus metrics server startup, transaction metric recording, and account ID extraction for ring assessment.
 - **Verification script** (`scripts/verify_v3_components.py`): 43-check comprehensive validation of all v3.0.0 components and their integration with v2.x components.
 - **Performance benchmark** (`scripts/benchmark_performance.py`): TPS/latency benchmark covering the C++ cleaning wrapper, inference service, graph operations, and hybrid risk engine.
+- **Notebook suite rebuilt for v3.0.0**: `01_fraudshield_pipeline_tutorial` (ingestion → preprocessing → drift gate → XGBoost training → evaluation → live scoring → SHAP), new `02_realtime_streaming_and_graph` (Kafka/Redpanda broker factories, stateful streaming features, Louvain ring detection, hybrid risk engine, in-process inference API), plus refreshed `exploratory_data_analysis` and `model_experimentation`. All four execute cleanly end-to-end and ship with embedded outputs.
 
 ### Changed
 - `HybridRiskEngine.evaluate_transaction()` signature extended with `account_id` parameter (backward compatible, defaults to `""`).
 - Kafka advertised listeners in docker-compose updated to support both internal (`kafka:29092`) and external (`localhost:9092`) access.
 - Removed obsolete `version` attribute from `infra/docker-compose.yml`.
 - `Resources.py` now exposes `create_producer_via_broker()` and `create_consumer_via_broker()` convenience functions.
+- Rewrote `scripts/benchmark_performance.py` against the real v3.0.0 APIs: benchmarks `cpp_wrapper` C++ vs. NumPy-fallback cleaning side by side, adds the stateful feature store, labels the inference section with the actual loaded mode, measures distinct events instead of one repeated payload, and runs Neo4j writes live when reachable (simulated otherwise).
 
 ### Fixed
 - Fixed missing `broker_type` attribute in `KafkaSettings` (`src/fraudshield/config/settings.py`) which caused mypy failures.
@@ -51,6 +53,7 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - PostgreSQL integration test only skips on connectivity failures instead of masking any error as a skip.
 - Inference feature frame now passes `None` instead of `pd.NA` for missing input columns, fixing a `TypeError` in the sklearn imputer that turned `/predict` into a 500 whenever a payload omitted model input columns.
 - Normalized rolling-window units for pandas >= 3.0 (`7d` → `7D` at parse time only) via a new `pandas_window()` helper, removing deprecation warnings from `parse_windows`, rolling aggregates, and the stateful feature store.
+- `train_and_save(model=...)` now accepts `xgboost`/`random_forest` aliases and raises `ValueError` for unknown model names instead of silently writing empty metrics with no saved model.
 
 ### Security
 - Pinned `starlette>=1.3.1` in override-dependencies to resolve High severity CVE-2026-54283.
@@ -75,6 +78,8 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - `test_inference_api.py`: 2 tests covering the hybrid prediction flow and metrics availability.
 - `test_postgresql.py`: integration test validating ingestion against a live PostgreSQL instance (skips when `FRAUDSHIELD_DATABASE_URL` is unset).
 - `test_realtime_architecture.py`: 2 new tests for ring detector integration in `HybridRiskEngine`.
+- `test_transaction_features.py`: added coverage for `pandas_window()` day-unit normalization.
+- `test_model_training.py`: 2 new tests covering `train_and_save` model aliases and unknown-model rejection.
 
 ## [2.3.0] - 2026-06-15
 
