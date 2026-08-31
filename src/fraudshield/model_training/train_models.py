@@ -174,6 +174,10 @@ def train_and_save(
         )
 
     metrics: Dict[str, Dict[str, float]] = {}
+    model_aliases = {"xgboost": "xgb", "random_forest": "rf"}
+    model = model_aliases.get(model, model)
+    if model not in {"rf", "xgb", "both"}:
+        raise ValueError(f"Unknown model '{model}'. Expected one of: rf, xgb, both.")
     parsed_hyperparameters = _parse_hyperparameters(hyperparameters)
     rf_params = parsed_hyperparameters.get("random_forest") or parsed_hyperparameters.get("rf")
     xgb_params = parsed_hyperparameters.get("xgboost") or parsed_hyperparameters.get("xgb")
