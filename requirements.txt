@@ -193,7 +193,7 @@ typing-inspection==0.4.2
     #   pydantic
 tzdata==2026.2 ; python_full_version < '3.11' or sys_platform == 'emscripten' or sys_platform == 'win32'
     # via pandas
-uvicorn==0.49.0
+uvicorn==0.54.0
     # via fraudshield
 xgboost==3.2.0
     # via fraudshield
