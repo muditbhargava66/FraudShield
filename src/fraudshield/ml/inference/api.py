@@ -52,6 +52,14 @@ class FraudScoreResponse(BaseModel):
     action: str
     model_loaded: bool
     source: str
+    explanation: Optional[Dict[str, float]] = None
+
+
+def _top_explanation_factors(raw: Dict[str, Any], limit: int = 5) -> Optional[Dict[str, float]]:
+    """Trim the abs-sorted SHAP mapping to the strongest factors; None when unavailable."""
+    if not raw or "Error" in raw:
+        return None
+    return {name: float(value) for name, value in list(raw.items())[:limit]}
 
 
 def create_app(settings: Optional[RuntimeSettings] = None) -> FastAPI:
@@ -113,6 +121,7 @@ def create_app(settings: Optional[RuntimeSettings] = None) -> FastAPI:
             action=assessment["action"],
             model_loaded=prediction.model_loaded,
             source=prediction.source,
+            explanation=_top_explanation_factors(service.explain(prediction)),
         )
 
     @app.get("/health")
