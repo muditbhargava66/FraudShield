@@ -24,9 +24,17 @@ def run_drift_check_with_metrics(
     metadata_path: str = "data/models/preprocessing_metadata.json",
     drift_threshold: float = 0.05,
     max_drift_ratio: float = 0.3,
+    min_ks_statistic: float = 0.10,
+    use_fdr: bool = True,
 ) -> Dict[str, Any]:
     """
     Run a KS-test drift check and emit Prometheus metrics.
+
+    A feature counts as drifted only when its p-value (Benjamini-Hochberg
+    adjusted when ``use_fdr`` is True) is below ``drift_threshold`` and its KS
+    statistic reaches ``min_ks_statistic``. The effect-size floor matters
+    because the KS test over-rejects at large sample sizes: a negligible mean
+    shift becomes "significant" without being practically meaningful.
 
     Returns a summary dict with ``drift_ratio``, ``drifted_features``,
     ``total_features``, and ``drifted_feature_names``.
@@ -58,11 +66,28 @@ def run_drift_check_with_metrics(
     num_features = x_train.shape[1]
     drifted_names: List[str] = []
 
+    p_values: List[float] = []
+    statistics: List[float] = []
+    for i in range(num_features):
+        statistic, p_value = stats.ks_2samp(x_train[:, i], x_test[:, i])
+        statistics.append(float(statistic))
+        p_values.append(float(p_value))
+
+    if use_fdr and p_values:
+        adjusted = np.asarray(stats.false_discovery_control(p_values, method="bh"))
+    else:
+        adjusted = np.asarray(p_values)
+
     for i in range(num_features):
         feat_name = feature_names[i] if feature_names and i < len(feature_names) else f"feature_{i}"
-        _stat, p_value = stats.ks_2samp(x_train[:, i], x_test[:, i])
-        if p_value < drift_threshold:
-            logger.warning("Drift detected in %s: p_value=%.4e", feat_name, p_value)
+        if adjusted[i] < drift_threshold and statistics[i] >= min_ks_statistic:
+            logger.warning(
+                "Drift detected in %s: p_value=%.4e (adjusted=%.4e), ks_statistic=%.4f",
+                feat_name,
+                p_values[i],
+                adjusted[i],
+                statistics[i],
+            )
             drifted_names.append(feat_name)
 
     drifted_count = len(drifted_names)
@@ -84,9 +109,7 @@ def run_drift_check_with_metrics(
     )
 
     if drift_ratio > max_drift_ratio:
-        raise RuntimeError(
-            f"Data drift threshold exceeded! {drift_ratio * 100:.1f}% > {max_drift_ratio * 100:.1f}% limit."
-        )
+        raise RuntimeError(f"Data drift threshold exceeded! {drift_ratio * 100:.1f}% > {max_drift_ratio * 100:.1f}% limit.")
 
     return {
         "drift_ratio": drift_ratio,

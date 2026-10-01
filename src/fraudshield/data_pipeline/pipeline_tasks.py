@@ -108,6 +108,8 @@ def run_data_drift_check(
     metadata_path: str = "data/models/preprocessing_metadata.json",
     drift_threshold: float = 0.05,
     max_drift_ratio: float = 0.3,
+    min_ks_statistic: float = 0.10,
+    use_fdr: bool = True,
 ) -> dict[str, Any]:
     """Run the shared drift detector so Airflow and metrics stay in sync."""
     return run_drift_check_with_metrics(
@@ -116,4 +118,6 @@ def run_data_drift_check(
         metadata_path=metadata_path,
         drift_threshold=drift_threshold,
         max_drift_ratio=max_drift_ratio,
+        min_ks_statistic=min_ks_statistic,
+        use_fdr=use_fdr,
     )
