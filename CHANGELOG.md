@@ -5,7 +5,7 @@ All notable changes to FraudShield are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [3.0.0] - 2026-09-01
+## [3.0.0] - 2026-10-02
 
 ### Added
 - `.gitattributes` for GitHub Linguist language detection overrides.
