@@ -112,7 +112,7 @@ pillow==12.3.0
     # via matplotlib
 prometheus-client==0.25.0
     # via fraudshield
-psycopg2-binary==2.9.12
+psycopg2-binary==2.9.13
     # via fraudshield
 pybind11==3.0.4
     # via fraudshield
