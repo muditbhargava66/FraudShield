@@ -1,6 +1,6 @@
 # FraudShield - Quick Start Guide
 
-**92 tests** | Lint: ruff + mypy |
+**97 tests** | Lint: ruff + mypy |
 
 ---
 
@@ -200,7 +200,9 @@ curl -s -X POST http://localhost:8000/predict \
 ```
 
 Response fields: `transaction_id`, `fraud_probability`, `risk_level`
-(`HIGH`/`MEDIUM`/`LOW`), `action` (`BLOCK`/`ALLOW`), `model_loaded`, `source`.
+(`HIGH`/`MEDIUM`/`LOW`), `action` (`BLOCK`/`ALLOW`), `model_loaded`, `source`,
+and `explanation` — the top-5 SHAP feature contributions behind the score
+(`null` when no trained model is loaded).
 
 ### Broker Abstraction (Kafka / Redpanda)
 

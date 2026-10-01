@@ -50,7 +50,14 @@ Recording is a silent no-op when `prometheus_client` is not installed or when th
 
 ### Batch Pipeline
 
-`run_drift_check_with_metrics()` wraps the existing KS-test drift logic from `pipeline_tasks.py` and emits Prometheus gauges after each check. It raises `RuntimeError` when the drift ratio exceeds `max_drift_ratio`.
+`run_drift_check_with_metrics()` runs a two-sample KS test per feature, emits Prometheus gauges after each check, and raises `RuntimeError` when the drift ratio exceeds `max_drift_ratio` (default 0.3).
+
+A feature counts as drifted only when **both** conditions hold:
+
+1. Its p-value is below `drift_threshold` (default 0.05) **after Benjamini-Hochberg FDR correction** (`use_fdr=True` by default) — testing ~45 features at once inflates false discoveries without correction.
+2. Its KS statistic reaches `min_ks_statistic` (default 0.10) — the KS test over-rejects at large sample sizes, so statistical significance alone would flag practically identical distributions.
+
+Both knobs are exposed through `run_data_drift_check()` and therefore through the Airflow drift task. On the shipped synthetic dataset the corrected gate reports ~27% drifted features (12/45, KS statistics 0.15-0.51 on genuinely divergent rolling-count windows) and passes the default 30% limit.
 
 ### Streaming Pipeline
 
@@ -76,3 +83,33 @@ After starting the stack, create dashboards in Grafana:
    - **Fraud probability distribution**: `histogram_quantile(0.5, rate(fraudshield_fraud_probability_bucket[5m]))`
    - **Active fraud rings**: `fraudshield_active_fraud_rings`
    - **Drift ratio**: `fraudshield_drift_ratio`
+
+## Performance: Targets vs Measured
+
+Measured on Apple Silicon (local machine) with `scripts/benchmark_performance.py`
+against the v3.0.0 artifacts; PRD targets in parentheses.
+
+| Component | Measured | PRD target | Status |
+|---|---|---|---|
+| Stateful feature store (per event) | ~54,000 events/s, 0.02 ms avg | >= 10,000 TPS | Met |
+| ML inference (service-level predict) | 3.1-3.6 ms avg | < 100 ms | Met |
+| `/predict` API incl. SHAP explanation | 6.9 ms avg, 9.1 ms p99 | < 100 ms | Met |
+| Hybrid risk engine | ~165,000 evaluations/s | - | Met |
+| C++ data cleaning vs NumPy fallback | 326k rows/s vs 79k rows/s (4.2x) | - | Met |
+| Neo4j transaction MERGE (local Docker) | 11.3 ms avg | < 10 ms | Marginal miss |
+| End-to-end single consumer pipeline | ~300 TPS | >= 10,000 TPS | Not met |
+
+Notes:
+
+- **Single-consumer throughput** is bounded by per-event model inference in one
+  Python process. The 10k TPS target requires horizontal scale-out: partition
+  the Kafka topic and run multiple consumer replicas behind the stateless
+  inference API. `StatefulFeatureStore` is per-process, so multi-instance
+  deployments need a shared store (e.g., Redis) or user-keyed partitioning so
+  each user's events land on the same replica.
+- **Neo4j write latency** varies with storage; the 11.3 ms average comes from
+  Docker Desktop on macOS with per-write sessions. Batching writes or using
+  an SSD-backed deployment closes the remaining gap.
+- **Message loss**: the Kafka consumer commits offsets only after successful
+  processing and records a `failed` transaction metric on decode/processing
+  errors, so unprocessed messages are redelivered rather than dropped.

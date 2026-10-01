@@ -28,6 +28,8 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - **Verification script** (`scripts/verify_v3_components.py`): 43-check comprehensive validation of all v3.0.0 components and their integration with v2.x components.
 - **Performance benchmark** (`scripts/benchmark_performance.py`): TPS/latency benchmark covering the C++ cleaning wrapper, inference service, graph operations, and hybrid risk engine.
 - **Notebook suite rebuilt for v3.0.0**: `01_fraudshield_pipeline_tutorial` (ingestion → preprocessing → drift gate → XGBoost training → evaluation → live scoring → SHAP), new `02_realtime_streaming_and_graph` (Kafka/Redpanda broker factories, stateful streaming features, Louvain ring detection, hybrid risk engine, in-process inference API), plus refreshed `exploratory_data_analysis` and `model_experimentation`. All four execute cleanly end-to-end and ship with embedded outputs.
+- **Per-prediction explainability**: `POST /predict` now returns an `explanation` field with the top-5 SHAP feature contributions (null when no trained model is loaded), satisfying PRD objective 3 for every scored transaction. Endpoint latency with explanations: ~7 ms avg / ~9 ms p99.
+- Drift-gate tuning knobs `min_ks_statistic` and `use_fdr` exposed through `run_data_drift_check()` and the Airflow drift task.
 
 ### Changed
 - `HybridRiskEngine.evaluate_transaction()` signature extended with `account_id` parameter (backward compatible, defaults to `""`).
@@ -35,6 +37,9 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Removed obsolete `version` attribute from `infra/docker-compose.yml`.
 - `Resources.py` now exposes `create_producer_via_broker()` and `create_consumer_via_broker()` convenience functions.
 - Rewrote `scripts/benchmark_performance.py` against the real v3.0.0 APIs: benchmarks `cpp_wrapper` C++ vs. NumPy-fallback cleaning side by side, adds the stateful feature store, labels the inference section with the actual loaded mode, measures distinct events instead of one repeated payload, and runs Neo4j writes live when reachable (simulated otherwise).
+- Drift gate now applies Benjamini-Hochberg FDR correction plus a KS effect-size floor (`min_ks_statistic=0.10`): a feature counts as drifted only when the adjusted p-value is below `drift_threshold` **and** the KS statistic shows a practically meaningful difference. The previous raw-significance test flagged ~44% of features on the shipped dataset (KS over-rejects at large n), blocking every Airflow retraining run; the corrected gate reports 27% (12/45 genuine divergences) and passes at defaults.
+- Regenerated `evaluation_report*.csv` and confusion-matrix plots from the committed models, and replaced the stale README metrics tables with verified numbers at both the default (0.5) and best-F1 decision thresholds.
+- Moved the working PRD and implementation-record documents out of `docs/` into the untracked local project archive; `docs/model_architecture.md` now documents the repository-layout deviation from the PRD target, and `docs/monitoring.md` records measured performance vs. PRD targets.
 
 ### Fixed
 - Fixed missing `broker_type` attribute in `KafkaSettings` (`src/fraudshield/config/settings.py`) which caused mypy failures.
@@ -54,6 +59,7 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Inference feature frame now passes `None` instead of `pd.NA` for missing input columns, fixing a `TypeError` in the sklearn imputer that turned `/predict` into a 500 whenever a payload omitted model input columns.
 - Normalized rolling-window units for pandas >= 3.0 (`7d` → `7D` at parse time only) via a new `pandas_window()` helper, removing deprecation warnings from `parse_windows`, rolling aggregates, and the stateful feature store.
 - `train_and_save(model=...)` now accepts `xgboost`/`random_forest` aliases and raises `ValueError` for unknown model names instead of silently writing empty metrics with no saved model.
+- `tests/smoke/test_startup.py` now clears the cached settings at teardown; previously the toy-model env overrides leaked into later tests, silently swapping the inference artifacts for the whole rest of the suite.
 
 ### Security
 - Pinned `starlette>=1.3.1` in override-dependencies to resolve High severity CVE-2026-54283.
@@ -64,6 +70,11 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Pinned `sqlparse>=0.6.0` to resolve four advisories (ReDoS/CPU DoS/quadratic grouping/snippet breakout).
 - Pinned `aiosmtplib>=5.1.2` to resolve the STARTTLS response injection advisory (GHSA-vxj7-4xrp-5vr4).
 - Pinned `setuptools>=83.0.0` to resolve the MANIFEST.in Unicode normalization bypass (GHSA-h35f-9h28-mq5c).
+- Pinned `anyio>=4.14.2` in override-dependencies to resolve PYSEC-2026-4024 and PYSEC-2026-4025.
+- Pinned `pyjwt>=2.15.0` in override-dependencies to resolve seven PYSEC-2026-414x advisories (Airflow transitive).
+- Raised `urllib3>=2.8.0` in override-dependencies to resolve PYSEC-2026-4177.
+- Pinned `virtualenv>=21.7.13` in override-dependencies to resolve four PYSEC-2026-401x advisories (Airflow transitive).
+- Updated the optional Apache Airflow extra to `>=3.3.2` to resolve PYSEC-2026-3988, PYSEC-2026-3989, and PYSEC-2026-3990.
 - Removed the unused Snowflake Airflow provider and its large transitive tree.
 - Removed the orphaned `pyopenssl` override-dependencies entry (package is not in the dependency graph).
 - Removed embedded Docker Compose credentials, disabled unneeded Neo4j APOC file import/export settings, bound development ports to loopback, and run the application image as an unprivileged user.
@@ -75,7 +86,8 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - `test_broker_abstraction.py`: 19 tests covering Kafka/Redpanda factory creation, config defaults, overrides, SASL credential wiring, dispatcher, and convenience functions.
 - `test_graph_repository.py`: 6 tests covering upsert validation, null device/IP handling, and entity risk scoring.
 - `test_kafka_consumer.py`: 3 tests covering commit behavior on success, handler failure, and malformed payloads.
-- `test_inference_api.py`: 2 tests covering the hybrid prediction flow and metrics availability.
+- `test_inference_api.py`: 3 tests covering the hybrid prediction flow, metrics availability, and the per-prediction SHAP explanation.
+- `test_drift_hooks.py`: 4 tests covering the effect-size floor, FDR correction, gate tripping on genuine shifts, and floor opt-out.
 - `test_postgresql.py`: integration test validating ingestion against a live PostgreSQL instance (skips when `FRAUDSHIELD_DATABASE_URL` is unset).
 - `test_realtime_architecture.py`: 2 new tests for ring detector integration in `HybridRiskEngine`.
 - `test_transaction_features.py`: added coverage for `pandas_window()` day-unit normalization.

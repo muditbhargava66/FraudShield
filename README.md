@@ -43,9 +43,10 @@ Four CLI entry points run sequentially:
 
 ### Inference API
 
-FastAPI app with two endpoints:
-- `POST /predict` — Accepts a transaction, returns fraud probability, risk level, and recommended action.
+FastAPI app with three endpoints:
+- `POST /predict` — Accepts a transaction, returns fraud probability, risk level, recommended action, and a top-5 SHAP `explanation` of the driving features.
 - `GET /health` — Model status check.
+- `GET /metrics/` — Prometheus metrics (when monitoring is enabled).
 
 ## Key Features
 
@@ -278,33 +279,35 @@ Each has a `cpp_wrapper.py` that attempts the C++ import and falls back to pure 
 
 ## Model Evaluation Results
 
-Results on synthetic data (5,000 transactions, ~7% fraud rate) with threshold tuned for best F1.
+Verified against the committed artifacts in `data/models/` (synthetic data: 5,000 transactions, ~7% fraud rate; 1,000-row test split at 7.8% fraud). Reports are regenerated with `fraudshield_evaluate`; the confusion matrices below show the default 0.5 decision threshold.
 
 ### Random Forest
 
 ![Random Forest Confusion Matrix](data/plots/confusion_matrix_rf.png)
 
-| Metric    | Value  |
-|-----------|--------|
-| Accuracy  | 0.878  |
-| Precision | 0.300  |
-| Recall    | 0.423  |
-| F1 Score  | 0.351  |
-| ROC AUC   | 0.744  |
+| Metric            | Default (0.5) | Tuned (0.14, best F1) |
+|-------------------|---------------|-----------------------|
+| Accuracy          | 0.922         | 0.857                 |
+| Precision         | 0.000         | 0.259                 |
+| Recall            | 0.000         | 0.449                 |
+| F1 Score          | 0.000         | 0.329                 |
+| ROC AUC           | 0.751         | —                     |
+| Average Precision | 0.237         | —                     |
 
 ### XGBoost
 
 ![XGBoost Confusion Matrix](data/plots/confusion_matrix_xg.png)
 
-| Metric    | Value  |
-|-----------|--------|
-| Accuracy  | 0.864  |
-| Precision | 0.216  |
-| Recall    | 0.282  |
-| F1 Score  | 0.244  |
-| ROC AUC   | 0.719  |
+| Metric            | Default (0.5) | Tuned (0.05, best F1) |
+|-------------------|---------------|-----------------------|
+| Accuracy          | 0.912         | 0.863                 |
+| Precision         | 0.273         | 0.214                 |
+| Recall            | 0.077         | 0.282                 |
+| F1 Score          | 0.120         | 0.243                 |
+| ROC AUC           | 0.709         | —                     |
+| Average Precision | 0.191         | —                     |
 
-Note: These results are on synthetic data (5,000 samples) with multi-factor fraud patterns (amount anomaly, user behavior, merchant concentration, channel combo, time-of-day). The default threshold of 0.5 yields low recall; fraud detection typically requires a lower decision threshold. Use `notebooks/model_experimentation.ipynb` to sweep thresholds for your use case.
+Note: These results are on synthetic data with multi-factor fraud patterns (amount anomaly, user behavior, merchant concentration, channel combo, time-of-day). At the default threshold of 0.5 the Random Forest predicts no fraud at all — fraud detection typically requires a lower decision threshold, which roughly doubles F1 for both models. Use `notebooks/model_experimentation.ipynb` to sweep thresholds for your use case.
 
 ---
 
