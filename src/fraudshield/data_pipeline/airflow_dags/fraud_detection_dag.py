@@ -2,7 +2,6 @@
 FraudShield Airflow DAG definition.
 """
 
-import logging
 import sys
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -35,16 +34,6 @@ from fraudshield.data_pipeline.pipeline_tasks import (  # noqa: E402
     run_model_training,
 )
 
-try:
-    from airflow.providers.snowflake.operators.snowflake import SnowflakeOperator  # type: ignore[attr-defined]
-except ImportError as exc:  # pragma: no cover - optional provider
-    logging.getLogger(__name__).warning("SnowflakeOperator not available: %s", exc)
-    SnowflakeOperator = None
-except Exception as exc:  # pragma: no cover - defensive logging
-    logging.getLogger(__name__).error("Unexpected error importing SnowflakeOperator: %s", exc)
-    SnowflakeOperator = None
-
-
 default_args = {
     "owner": "airflow",
     "depends_on_past": False,
@@ -74,7 +63,7 @@ def _variable_get(key: str, default: str) -> Any:
 def _data_ingestion_task() -> None:
     run_data_ingestion(
         database=_variable_get("database", SETTINGS.database.sqlalchemy_url),
-        table=_variable_get("table", "fraud_data"),
+        table=_variable_get("table", "transactions"),
         data_path=_variable_get("data_path", "data/raw"),
         input_file=_variable_get("input_file", "synthetic_fraud_data.csv"),
         output_file=_variable_get("output_file", "data/processed/ingested_data.csv"),
@@ -130,14 +119,6 @@ data_drift_task = PythonOperator(task_id="data_drift", python_callable=_data_dri
 model_training_task = PythonOperator(task_id="model_training", python_callable=_model_training_task, dag=dag)
 model_evaluation_task = PythonOperator(task_id="model_evaluation", python_callable=_model_evaluation_task, dag=dag)
 
-if SnowflakeOperator is not None:
-    model_deployment_task = SnowflakeOperator(
-        task_id="model_deployment",
-        snowflake_conn_id="snowflake_default",
-        sql="CALL deploy_fraud_detection_model()",
-        dag=dag,
-    )
-else:
-    model_deployment_task = PythonOperator(task_id="model_deployment", python_callable=run_model_deployment, dag=dag)
+model_deployment_task = PythonOperator(task_id="model_deployment", python_callable=run_model_deployment, dag=dag)
 
 data_ingestion_task >> data_preprocessing_task >> data_drift_task >> model_training_task >> model_evaluation_task >> model_deployment_task

@@ -14,48 +14,62 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_USER: fraudshield
+          POSTGRES_PASSWORD: fraudshield_password
+          POSTGRES_DB: fraudshield_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
 
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@v7
 
     - name: Set up Python
-      uses: actions/setup-python@v6
+      uses: actions/setup-python@v7
       with:
         python-version: "3.10"
 
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip uv
-        uv pip install --system -r requirements.txt
-        uv pip install --system -e ".[airflow]"
+        uv sync --all-extras --locked
 
     - name: Run data ingestion
       run: |
-        python -m fraudshield.data_ingestion.data_ingestion
+        uv run --no-sync python -m fraudshield.data_ingestion.data_ingestion
 
     - name: Run data preprocessing
       run: |
-        python -m fraudshield.data_preprocessing.data_preprocessing
+        uv run --no-sync python -m fraudshield.data_preprocessing.data_preprocessing
 
     - name: Train models
       run: |
-        python -m fraudshield.model_training.train_models
+        uv run --no-sync python -m fraudshield.model_training.train_models
 
     - name: Evaluate models
       run: |
-        python -m fraudshield.model_evaluation.evaluation
+        uv run --no-sync python -m fraudshield.model_evaluation.evaluation
 
     - name: Run tests
+      env:
+        FRAUDSHIELD_DATABASE_URL: postgresql+psycopg2://fraudshield:fraudshield_password@localhost:5432/fraudshield_db
       run: |
-        uv run pytest tests/ -v
+        uv run --no-sync pytest tests/ -v
 
     - name: Package project
       run: |
-        python -m pip install build
-        python -m build
+        uv run --no-sync python -m build
 
     - name: Upload package artifacts
-      uses: actions/upload-artifact@v6
+      uses: actions/upload-artifact@v7
       with:
         name: dist
         path: dist
@@ -64,26 +78,38 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@v7
 
     - name: Set up Python
-      uses: actions/setup-python@v6
+      uses: actions/setup-python@v7
       with:
         python-version: "3.10"
 
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip uv
-        uv pip install --system "ruff>=0.11.0" "mypy>=1.10.0"
-        uv pip install --system -r requirements.txt
-        uv pip install --system -e .
+        uv sync --all-extras --locked
 
     - name: Lint with Ruff
       run: |
-        ruff check src tests
+        uv run --no-sync ruff check src tests scripts
 
     - name: Type check with mypy
       run: |
-        mypy src/
+        uv run --no-sync mypy src/
 
+  dependency-audit:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v7
 
+    - name: Set up Python
+      uses: actions/setup-python@v7
+      with:
+        python-version: "3.10"
+
+    - name: Audit exported locked dependencies
+      run: |
+        python -m pip install --upgrade pip uv
+        uv export --all-extras --no-dev --no-emit-project --no-hashes --locked --output-file /tmp/fraudshield-audit-requirements.txt
+        uvx pip-audit --no-deps --disable-pip -r /tmp/fraudshield-audit-requirements.txt --strict

@@ -1,0 +1,43 @@
+# Build artifacts
+build/
+dist/
+*.egg-info/
+
+# Virtual environments
+.venv/
+.tox/
+.pytest_cache/
+.ruff_cache/
+
+# IDE
+.idea/
+.vscode/
+
+# Git
+.git/
+.gitignore
+
+# Logs and generated data
+logs/
+data/plots/
+.airflow/
+
+# Environment files (may contain secrets)
+.env
+.env.*
+
+# Notebooks (too large for Docker build context)
+notebooks/
+
+# Docker
+infra/
+Dockerfile
+
+# Docs and planning
+docs/
+.github/
+CHANGELOG.md
+CONTRIBUTING.md
+CODE_OF_CONDUCT.md
+Makefile
+tox.ini

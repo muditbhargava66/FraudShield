@@ -9,7 +9,7 @@ from typing import Any, Callable, Dict
 
 from fraudshield.config.settings import RuntimeSettings, get_settings
 from fraudshield.runtime.logging import configure_logging
-from fraudshield.runtime.resources import create_kafka_consumer
+from fraudshield.streaming.broker import create_broker_consumer
 
 try:
     from confluent_kafka import KafkaError, KafkaException
@@ -49,13 +49,19 @@ class TransactionConsumer:
         self.bootstrap_servers = bootstrap_servers or self.settings.kafka.bootstrap_servers
 
         try:
-            self.consumer = consumer or create_kafka_consumer(
+            self.consumer = consumer or create_broker_consumer(
                 self.settings.kafka,
-                bootstrap_servers=self.bootstrap_servers,
-                group_id=self.group_id,
+                **{
+                    "bootstrap.servers": self.bootstrap_servers,
+                    "group.id": self.group_id,
+                },
             )
             self.consumer.subscribe([self.topic])
-            logger.info("Kafka TransactionConsumer successfully initialized and subscribed to %s", self.topic)
+            logger.info(
+                "%s TransactionConsumer successfully initialized and subscribed to %s",
+                self.settings.kafka.broker_type,
+                self.topic,
+            )
         except Exception as e:
             logger.error("Failed to initialize Kafka Consumer: %s", e)
             raise
@@ -84,16 +90,21 @@ class TransactionConsumer:
                         raise KafkaException(msg.error())
 
                 # Process the message
+                failed = False
                 try:
                     payload = json.loads(msg.value().decode("utf-8"))
                     message_handler(payload)
                 except json.JSONDecodeError as decode_err:
                     logger.error("Failed to decode Kafka message payload: %s", decode_err)
-                    continue
+                    failed = True
                 except Exception as ex:
-                    logger.error("Transaction processing pipeline failed organically: %s", ex)
-                    continue
+                    logger.error("Transaction processing pipeline failed: %s", ex)
+                    failed = True
 
+                if failed:
+                    self._record_failed_message()
+
+                # Commit after every message so a poison message cannot stall the partition.
                 self.consumer.commit(asynchronous=False)
 
         except KeyboardInterrupt:
@@ -101,6 +112,17 @@ class TransactionConsumer:
         finally:
             self.consumer.close()
             logger.info("Consumer shutdown complete.")
+
+    @staticmethod
+    def _record_failed_message() -> None:
+        try:
+            from fraudshield.monitoring.metrics import get_metrics
+        except ImportError:  # pragma: no cover - optional monitoring
+            return
+        try:
+            get_metrics().record_transaction(source="streaming", status="failed")
+        except Exception:  # pragma: no cover - metrics must never break ingestion
+            logger.debug("Failed to record failed-message metric.", exc_info=True)
 
     def close(self) -> None:
         self.consumer.close()

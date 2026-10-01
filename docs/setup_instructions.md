@@ -5,6 +5,7 @@ Step-by-step instructions for setting up FraudShield locally.
 ## Prerequisites
 
 - Python 3.10+
+- [uv](https://docs.astral.sh/uv/) — recommended dependency manager (the repo ships `pyproject.toml` + `uv.lock`)
 - C++ compiler (GCC 7+ or Clang 5+) — only needed for C++ extensions
 - Docker and Docker Compose — only for Kafka/Neo4j real-time streaming
 - Apache Airflow — optional, for DAG-based orchestration
@@ -57,20 +58,35 @@ Step-by-step instructions for setting up FraudShield locally.
 
 4. Run the SQL schema to create the required tables:
    ```bash
-   # The schema is in src/fraudshield/sql/create_tables.sql
-   # It is applied automatically during ingestion
+   # The schema is in src/fraudshield/sql/create_tables.sql.
+   # SQLite ingestion creates the transactions table automatically; apply this
+   # schema explicitly for PostgreSQL when you also need the users table.
    ```
 
 ## Real-Time Infrastructure (Optional)
 
-For the streaming pipeline (Kafka + Neo4j):
+For the streaming pipeline (Kafka + Neo4j + monitoring stack):
 
 ```bash
 cd infra
-docker-compose up -d
+# Docker Compose reads .env from its own directory, so create it here
+cp ../.env.example .env
+# Edit .env and replace every password placeholder before continuing.
+# Required by compose (startup fails if missing): FRAUDSHIELD_NEO4J_PASSWORD,
+# FRAUDSHIELD_POSTGRES_PASSWORD, FRAUDSHIELD_DATABASE_URL,
+# FRAUDSHIELD_GRAFANA_ADMIN_PASSWORD
+docker compose up -d
 ```
 
-This starts Kafka, Zookeeper, and Neo4j. The batch pipeline works without Docker.
+This starts 7 services (all host ports bind to 127.0.0.1):
+- **Zookeeper** (port 2181) and **Kafka** (port 9092, Confluent 7.5.0)
+- **Neo4j** 5.12.0 (ports 7474 HTTP, 7687 Bolt)
+- **PostgreSQL** 15 (port 5432, user `fraudshield`, database `fraudshield_db`)
+- **FraudShield app** (port 8000 FastAPI and `/metrics`)
+- **Prometheus** (host port 9091 -> 9090) scraping `fraudshield:8000/metrics`
+- **Grafana** (port 3000; admin password from `infra/.env`) with Prometheus datasource
+
+The batch pipeline works without Docker.
 
 ## Airflow (Optional)
 
@@ -122,6 +138,20 @@ uv run fraudshield_evaluate --model_path data/models/xgboost.pkl
 | Database connection errors | Check `FRAUDSHIELD_DATABASE_URL` environment variable |
 | Import errors for Airflow operators | Install with `uv pip install -e ".[airflow]"` |
 | Feature values look wrong | This is expected — rolling windows use `closed="left"` to prevent data leakage |
+| Prometheus metrics not appearing | Set `FRAUDSHIELD_MONITORING_ENABLED=true` and request `http://localhost:8000/metrics` |
+| Grafana shows no data | Ensure Prometheus datasource is configured at `http://prometheus:9090` |
+| `docker compose up` fails with "required variable ... is missing" | Create `infra/.env` (compose reads `.env` from its own directory) with `FRAUDSHIELD_NEO4J_PASSWORD`, `FRAUDSHIELD_POSTGRES_PASSWORD`, `FRAUDSHIELD_DATABASE_URL`, `FRAUDSHIELD_GRAFANA_ADMIN_PASSWORD` |
+| PostgreSQL integration test skips or fails | `tests/integration_tests/test_postgresql.py` needs a live database; it skips unless `FRAUDSHIELD_DATABASE_URL` points at a reachable PostgreSQL instance |
+
+## Verification
+
+Run the comprehensive v3.0.0 component verification:
+
+```bash
+uv run python scripts/verify_v3_components.py
+```
+
+This runs 43 checks across all modules: fraud ring detection, Prometheus metrics, broker abstraction, drift hooks, risk engine, Docker config, and v2.x integration.
 
 ## Support
 

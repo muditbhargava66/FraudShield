@@ -11,7 +11,7 @@ Raw CSV → Ingestion (SQLite) → Preprocessing → Feature Engineering → Dat
 1. **Data Ingestion**: Reads CSV data, validates schema, loads into SQLite
 2. **Preprocessing**: Applies C++ data cleaning, encodes categoricals, imputes missing values
 3. **Feature Engineering**: Computes rolling window aggregations and behavioral features
-4. **Data Drift Validation**: Performs Kolmogorov-Smirnov tests between train and test splits to detect distributional shifts before training
+4. **Data Drift Validation**: Performs Kolmogorov-Smirnov tests between train and test splits, with Benjamini-Hochberg FDR correction and a KS effect-size floor, to detect distributional shifts before training
 5. **Training**: Fits Random Forest and/or XGBoost on preprocessed arrays
 6. **Evaluation**: Computes metrics, generates confusion matrices, saves reports
 
@@ -19,10 +19,12 @@ Raw CSV → Ingestion (SQLite) → Preprocessing → Feature Engineering → Dat
 
 Requires Docker (Kafka + Neo4j):
 
-1. **Streaming Ingestion**: Transactions consumed via Kafka at configurable throughput
-2. **Neo4j Graph Tracking**: Entities (devices, IPs, accounts) tracked as graph nodes to detect ring fraud
-3. **Hybrid Risk Engine**: Blends ML (0.6), graph (0.25), and rule (0.15) scores into a final risk value
-4. **SHAP Explainability**: TreeExplainer generates per-prediction feature attributions
+1. **Streaming Ingestion**: Transactions consumed via Kafka (or Redpanda through the `streaming/broker.py` abstraction) at configurable throughput
+2. **Stateful Features**: `StatefulFeatureStore` computes rolling window aggregates in O(1) amortized time per event
+3. **Neo4j Graph Tracking**: Entities (devices, IPs, accounts) tracked as graph nodes; entity risk plus Louvain fraud ring detection feed the graph score
+4. **Hybrid Risk Engine**: Blends ML (0.6), graph (0.3), and rule (0.1) scores into a final risk value; overrides to >= 0.95 when all rules breach or the graph score >= 0.95. Risk levels: HIGH >= 0.75 (BLOCK), MEDIUM >= 0.40, else LOW (ALLOW)
+5. **Monitoring**: Prometheus counters/histograms/gauges recorded for each prediction and drift check
+6. **SHAP Explainability**: `POST /predict` returns the top-5 SHAP feature contributions with every scored transaction; the streaming orchestrator additionally triggers full TreeExplainer attributions for HIGH-risk transactions
 
 ## ML Models
 
@@ -61,7 +63,6 @@ Computed per-entity (user, merchant, currency, status) with windows `[1h, 24h, 7
 | `*_txn_count_{window}` | count | `closed="left"` excludes current row |
 | `*_amount_sum_{window}` | sum | `closed="left"` |
 | `*_amount_mean_{window}` | mean | `closed="left"` |
-| `*_fraud_rate_{window}` | mean | `closed="left"` (merchant only) |
 
 ### Behavioral Features
 
@@ -93,4 +94,29 @@ Trained models are loaded by `FraudInferenceService` for:
 - **Real-time API**: FastAPI endpoint at `/predict`
 - **Kafka consumer**: Processes streaming events with the same preprocessor and model
 
+The Airflow `model_deployment` task (`run_model_deployment` in
+`data_pipeline/pipeline_tasks.py`) validates that the model, preprocessor, and
+metadata artifacts load cleanly before the API serves them.
+
 ---
+
+## Repository Layout vs. PRD Target
+
+The v3.0.0 PRD sketched a target package layout (`core/feature_engine`,
+`ml/training`, `streaming/kafka_consumer`, ...). The shipped layout keeps the
+v2.x module organization, which the PRD's own recommendations allow as long as
+the deviation is documented. Restructuring a tested, working package would
+churn every import for no behavioral gain. Mapping:
+
+| PRD target | Shipped location |
+|---|---|
+| `core/feature_engine/` | `feature_engineering/` (batch) + `feature_engineering/stateful_aggregates.py` (streaming) |
+| `core/risk_engine/` | `core/risk_engine/engine.py` |
+| `ml/training/` | `model_training/` + `data_preprocessing/` + `model_evaluation/` |
+| `ml/inference/` | `ml/inference/` |
+| `ml/explainability/` | `ml/explainability/` |
+| `streaming/kafka_consumer/`, `streaming/transaction_producer/` | `streaming/` (`kafka_consumer.py`, `transaction_producer.py`, `broker.py`) |
+| `graph/graph_builder/`, `graph/fraud_ring_detector/` | `graph/` (`graph_builder/`, `fraud_ring_detector.py`, `repository.py`) |
+| `monitoring/metrics/`, `monitoring/drift_hooks/` | `monitoring/` (`metrics.py`, `drift_hooks.py`) |
+| `simulator/synthetic_transactions/` | `data/raw/synthetic_fraud_data.py` + `streaming/transaction_producer.py` |
+| `infra/docker/`, `infra/configs/` | `Dockerfile` (root) + `infra/` (compose, Prometheus config) |

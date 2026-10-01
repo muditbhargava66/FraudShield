@@ -21,6 +21,7 @@ except ImportError:  # pragma: no cover - optional dependency
 
 from fraudshield.config.settings import DatabaseSettings, KafkaSettings, ModelArtifactSettings, Neo4jSettings, get_settings
 from fraudshield.model_training.model_persistence import load_model
+from fraudshield.streaming.broker import create_broker_consumer, create_broker_producer
 
 try:
     from confluent_kafka import Consumer, Producer
@@ -140,3 +141,19 @@ def load_inference_artifacts(model_settings: ModelArtifactSettings | None = None
         input_feature_columns=input_feature_columns,
         transformed_feature_names=transformed_feature_names,
     )
+
+
+def create_producer_via_broker(
+    kafka: KafkaSettings | None = None,
+    **overrides: Any,
+):
+    """Create a producer using the configured broker type from settings."""
+    return create_broker_producer(kafka=kafka, **overrides)
+
+
+def create_consumer_via_broker(
+    kafka: KafkaSettings | None = None,
+    **overrides: Any,
+):
+    """Create a consumer using the configured broker type from settings."""
+    return create_broker_consumer(kafka=kafka, **overrides)

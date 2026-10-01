@@ -13,7 +13,7 @@ from typing import Any, Dict, Optional
 
 from fraudshield.config.settings import RuntimeSettings, get_settings
 from fraudshield.runtime.logging import configure_logging
-from fraudshield.runtime.resources import create_kafka_producer
+from fraudshield.streaming.broker import create_broker_producer
 
 logger = logging.getLogger(__name__)
 
@@ -43,12 +43,18 @@ class TransactionProducer:
         self.bootstrap_servers = bootstrap_servers or self.settings.kafka.bootstrap_servers
 
         try:
-            self.producer = producer or create_kafka_producer(
+            self.producer = producer or create_broker_producer(
                 self.settings.kafka,
-                bootstrap_servers=self.bootstrap_servers,
-                client_id=self.settings.kafka.producer_client_id,
+                **{
+                    "bootstrap.servers": self.bootstrap_servers,
+                    "client.id": self.settings.kafka.producer_client_id,
+                },
             )
-            logger.info("Kafka TransactionProducer successfully initialized targeting %s", self.bootstrap_servers)
+            logger.info(
+                "%s TransactionProducer successfully initialized targeting %s",
+                self.settings.kafka.broker_type,
+                self.bootstrap_servers,
+            )
         except Exception as e:
             logger.error("Failed to initialize Kafka Producer: %s", e)
             raise
@@ -94,6 +100,8 @@ class TransactionProducer:
         """
         logger.info("Starting transaction generation at %d TPS -> topic: %s", transactions_per_second, self.topic)
 
+        if transactions_per_second <= 0:
+            raise ValueError("transactions_per_second must be greater than zero.")
         sleep_interval = 1.0 / transactions_per_second
 
         try:

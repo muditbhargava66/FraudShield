@@ -4,18 +4,18 @@ CREATE TABLE IF NOT EXISTS transactions (
     transaction_id BIGINT PRIMARY KEY,
     user_id BIGINT NOT NULL,
     merchant_id BIGINT NOT NULL,
-    transaction_date DATE NOT NULL,
+    transaction_date TIMESTAMP NOT NULL,
     amount DECIMAL(10, 2) NOT NULL,
     currency VARCHAR(3) NOT NULL,
     status VARCHAR(20) NOT NULL,
-    is_international BOOLEAN NOT NULL DEFAULT 0,
-    is_online BOOLEAN NOT NULL DEFAULT 1,
+    is_international BOOLEAN NOT NULL DEFAULT FALSE,
+    is_online BOOLEAN NOT NULL DEFAULT TRUE,
     fraud BOOLEAN NOT NULL
 );
 
-CREATE INDEX idx_transactions_user_id ON transactions (user_id);
-CREATE INDEX idx_transactions_merchant_id ON transactions (merchant_id);
-CREATE INDEX idx_transactions_transaction_date ON transactions (transaction_date);
+CREATE INDEX IF NOT EXISTS idx_transactions_user_id ON transactions (user_id);
+CREATE INDEX IF NOT EXISTS idx_transactions_merchant_id ON transactions (merchant_id);
+CREATE INDEX IF NOT EXISTS idx_transactions_transaction_date ON transactions (transaction_date);
 
 CREATE TABLE IF NOT EXISTS users (
     user_id BIGINT PRIMARY KEY,
@@ -25,4 +25,4 @@ CREATE TABLE IF NOT EXISTS users (
     created_at TIMESTAMP NOT NULL
 );
 
-CREATE INDEX idx_users_email ON users (email);
+CREATE INDEX IF NOT EXISTS idx_users_email ON users (email);

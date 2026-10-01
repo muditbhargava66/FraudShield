@@ -1,6 +1,6 @@
 # FraudShield - Quick Start Guide
 
-**30/30 tests passing** | Lint: ruff + mypy
+**97 tests** | Lint: ruff + mypy |
 
 ---
 
@@ -13,6 +13,9 @@ cd FraudShield
 
 # Install with uv (recommended)
 uv pip install -e .
+
+# Or install from the committed lockfile (used by CI and the Dockerfile)
+uv sync
 
 # Or with pip
 pip install -e .
@@ -122,5 +125,113 @@ airflow db migrate
 airflow webserver --port 8080 &
 airflow scheduler &
 ```
+
+---
+
+## v3.0.0 Features
+
+### Verify All Components
+
+```bash
+uv run python scripts/verify_v3_components.py
+```
+
+Runs 43 checks validating fraud ring detection, Prometheus metrics, broker abstraction, drift hooks, risk engine integration, and Docker configuration.
+
+### Performance Benchmarking
+
+```bash
+uv run python scripts/benchmark_performance.py
+```
+
+Measures throughput (TPS) and latency percentiles for data cleaning (C++ vs. Python),
+the stateful feature store, the inference service, the hybrid risk engine, and Neo4j
+graph writes (simulated when no live instance is reachable).
+
+### Notebooks
+
+- `notebooks/01_fraudshield_pipeline_tutorial.ipynb` — end-to-end batch pipeline walkthrough
+- `notebooks/02_realtime_streaming_and_graph.ipynb` — streaming, graph, and risk engine tour
+- `notebooks/exploratory_data_analysis.ipynb` — EDA on the synthetic dataset
+- `notebooks/model_experimentation.ipynb` — model comparison and threshold sweeps
+
+### Prometheus Monitoring
+
+```bash
+# Metrics are enabled by default; toggle and retarget as needed
+export FRAUDSHIELD_MONITORING_ENABLED=true
+export FRAUDSHIELD_MONITORING_PORT=9090
+export FRAUDSHIELD_MONITORING_METRICS_PATH=/metrics
+```
+
+The FastAPI inference app exposes the metrics registry at `http://localhost:8000/metrics/`.
+Running the real-time orchestrator directly also starts a standalone Prometheus
+HTTP server on `FRAUDSHIELD_MONITORING_PORT` (default 9090):
+
+```bash
+uv run python -m fraudshield.main
+```
+
+### Fraud Ring Detection
+
+```python
+from fraudshield.graph.fraud_ring_detector import FraudRingDetector
+
+# Requires a running Neo4j instance
+detector = FraudRingDetector(neo4j_driver, min_ring_size=3)
+rings = detector.detect_rings(account_id="U_102")
+risk = detector.assess_account(account_id="U_102")
+```
+
+### Inference API
+
+Start the FastAPI app (serves `/predict`, `/health`, and `/metrics/` on port 8000):
+
+```bash
+uv run uvicorn fraudshield.ml.inference.api:app --port 8000
+```
+
+`transaction_id` must be a string in the request payload:
+
+```bash
+curl -s -X POST http://localhost:8000/predict \
+  -H "Content-Type: application/json" \
+  -d '{"transaction_id": "tx-1001", "account_id": "U_102", "amount": 4200.0, "is_online": false}'
+```
+
+Response fields: `transaction_id`, `fraud_probability`, `risk_level`
+(`HIGH`/`MEDIUM`/`LOW`), `action` (`BLOCK`/`ALLOW`), `model_loaded`, `source`,
+and `explanation` — the top-5 SHAP feature contributions behind the score
+(`null` when no trained model is loaded).
+
+### Broker Abstraction (Kafka / Redpanda)
+
+```bash
+# Switch broker backend via environment variable
+export FRAUDSHIELD_KAFKA_BROKER_TYPE=redpanda  # or "kafka" (default)
+
+# SASL credentials (Redpanda defaults to SASL_SSL + SCRAM-SHA-256)
+export FRAUDSHIELD_KAFKA_SASL_USERNAME=<username>
+export FRAUDSHIELD_KAFKA_SASL_PASSWORD=<password>
+```
+
+Both backends use the `confluent-kafka` client (`get_broker_factory("kafka" | "redpanda")`,
+`create_broker_producer()`, `create_broker_consumer()` in `src/fraudshield/streaming/broker.py`).
+
+### Full Stack with Docker
+
+```bash
+cd infra
+# Docker Compose reads .env from its own directory, so create it here
+cp ../.env.example .env
+# Edit .env and replace every password placeholder before continuing.
+# Required by compose: FRAUDSHIELD_NEO4J_PASSWORD, FRAUDSHIELD_POSTGRES_PASSWORD,
+# FRAUDSHIELD_DATABASE_URL, FRAUDSHIELD_GRAFANA_ADMIN_PASSWORD
+docker compose up -d
+```
+
+Starts: Zookeeper, Kafka (Confluent 7.5.0), Neo4j 5.12.0, PostgreSQL 15,
+FraudShield app (port 8000), Prometheus (host 9091 -> 9090), Grafana (port 3000).
+All host ports are bound to 127.0.0.1.
 
 ---

@@ -66,3 +66,48 @@ def test_graph_builder_initialization():
     builder = FraudGraphBuilder(driver=MagicMock())
     assert builder is not None
     assert builder.driver is not None
+
+
+def test_risk_engine_with_ring_detector():
+    """Verify that the ring detector score is blended into the composite risk."""
+    mock_ring_detector = MagicMock()
+    mock_ring_detector.assess_account.return_value = 0.9
+
+    engine = HybridRiskEngine(
+        ml_weight=0.6,
+        graph_weight=0.3,
+        rule_weight=0.1,
+        ring_detector=mock_ring_detector,
+    )
+
+    # With low graph_score (0.1) but high ring_score (0.9), the ring should boost graph
+    result = engine.evaluate_transaction(
+        ml_score=0.5,
+        graph_score=0.1,
+        rules_breached=0,
+        max_rules=5,
+        account_id="acct_123",
+    )
+
+    # graph_score should become max(0.1, 0.9) = 0.9
+    # composite = 0.5*0.6 + 0.9*0.3 + 0*0.1 = 0.3 + 0.27 + 0 = 0.57
+    assert result["graph_contribution"] == 0.9
+    assert result["composite_fraud_score"] == 0.57
+    mock_ring_detector.assess_account.assert_called_once_with("acct_123")
+
+
+def test_risk_engine_without_ring_detector():
+    """Verify that without a ring detector, graph_score is used as-is."""
+    engine = HybridRiskEngine(ml_weight=0.6, graph_weight=0.3, rule_weight=0.1)
+
+    result = engine.evaluate_transaction(
+        ml_score=0.5,
+        graph_score=0.2,
+        rules_breached=0,
+        max_rules=5,
+        account_id="acct_123",
+    )
+
+    # composite = 0.5*0.6 + 0.2*0.3 + 0*0.1 = 0.3 + 0.06 = 0.36
+    assert result["graph_contribution"] == 0.2
+    assert result["composite_fraud_score"] == 0.36

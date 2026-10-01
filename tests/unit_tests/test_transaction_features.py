@@ -4,6 +4,7 @@ from fraudshield.feature_engineering.stateful_aggregates import StatefulFeatureS
 from fraudshield.feature_engineering.transaction_features import (
     TransactionFeatureConfig,
     add_transaction_features,
+    pandas_window,
 )
 
 
@@ -43,8 +44,9 @@ def test_transaction_feature_generation_closed_left():
     # User 1 time since last transaction at id=2 is 30 minutes
     assert result.loc[2, "user_time_since_last_txn"] == 1800.0
 
-    # Merchant fraud rate uses past transactions only (merchant 10)
-    assert result.loc[2, "merchant_fraud_rate_1h"] == 0.0
+    # Confirmed-fraud labels are deliberately excluded from model features;
+    # labels arrive after authorization and would otherwise create leakage.
+    assert "merchant_fraud_rate_1h" not in result.columns
 
 
 def test_stateful_feature_store_tracks_history_without_recomputing():
@@ -77,3 +79,11 @@ def test_stateful_feature_store_tracks_history_without_recomputing():
     assert second["user_txn_count_1h"] == 1.0
     assert second["user_amount_sum_1h"] == 100.0
     assert second["user_time_since_last_txn"] == 1800.0
+
+
+def test_pandas_window_normalizes_day_units_for_pandas_3():
+    # pandas >= 3.0 rejects lowercase 'd' offsets; feature names keep '7d'.
+    assert pandas_window("7d") == "7D"
+    assert pandas_window("30d") == "30D"
+    assert pandas_window("24h") == "24h"
+    assert pandas_window("1h") == "1h"

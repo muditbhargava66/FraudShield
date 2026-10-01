@@ -3,6 +3,7 @@
 # FraudShield
 
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Version](https://img.shields.io/badge/version-3.0.0-blue.svg)](CHANGELOG.md)
 [![Python Version](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
 [![Ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)](https://github.com/astral-sh/ruff)
 [![Checked with mypy](https://www.mypy-lang.org/static/mypy_badge.svg)](https://mypy-lang.org/)
@@ -37,24 +38,29 @@ Four CLI entry points run sequentially:
 - **Kafka consumer** polls messages and passes them to the inference service.
 - **Inference service** normalizes payloads, builds stateful rolling-window features, runs model prediction. Falls back to heuristic scoring when no model is loaded.
 - **Graph builder** upserts transactions into Neo4j and computes entity risk.
-- **Hybrid risk engine** blends ML score (0.6), graph score (0.25), and rule breaches (0.15).
+- **Hybrid risk engine** blends ML score (0.6), graph score (0.3), and rule breaches (0.1). Optional ring detector boosts graph score when coordinated fraud rings are detected.
 - **SHAP explainability** provides per-transaction feature contributions for high-risk cases.
+- **Prometheus metrics** emitted automatically: transaction throughput, inference latency, fraud probability distribution, risk levels, active fraud rings, and data drift ratio.
 
 ### Inference API
 
-FastAPI app with two endpoints:
-- `POST /predict` — Accepts a transaction, returns fraud probability, risk level, and recommended action.
+FastAPI app with three endpoints:
+- `POST /predict` — Accepts a transaction, returns fraud probability, risk level, recommended action, and a top-5 SHAP `explanation` of the driving features.
 - `GET /health` — Model status check.
+- `GET /metrics/` — Prometheus metrics (when monitoring is enabled).
 
 ## Key Features
 
 - **Kafka & Neo4j integration** for real-time streaming and graph-based entity analysis
+- **Fraud ring detection** via Louvain community detection on Neo4j 2-hop neighborhood subgraphs (shared devices/IPs connecting accounts)
+- **Prometheus monitoring** with counters, histograms, and gauges for transactions, inference latency, fraud probability, risk levels, and drift ratios
 - **Explainable AI** via SHAP (TreeSHAP) for transparent scoring
 - **Data drift validation** (KS test) in the Airflow DAG to catch distributional shifts before retraining
 - **Data leakage prevention** in feature engineering (`closed="left"` rolling windows, `shift(1)` z-scores)
 - **Time-based train/test split** to prevent temporal leakage
 - **Class balancing** in model training (`scale_pos_weight`, balanced subsampling)
-- **Stateful streaming aggregates** for real-time rolling counts, sums, means, and fraud rates
+- **Stateful streaming aggregates** for real-time rolling counts, sums, and means without accepting caller-supplied fraud labels
+- **Pluggable broker abstraction** supporting Kafka and Redpanda backends via factory pattern
 - **Optional Airflow DAG** for orchestration with runtime variable fetching
 - **C++ acceleration** for data cleaning via pybind11 (feature engineering C++ is experimental)
 - **FastAPI inference API** for real-time predictions
@@ -129,6 +135,38 @@ Run the inference API locally:
 uvicorn fraudshield.ml.inference.api:app --reload
 ```
 
+## Docker
+
+The project includes a Dockerfile and docker-compose setup with Kafka, Neo4j, Prometheus, and Grafana:
+
+```bash
+docker compose -f infra/docker-compose.yml up --build
+```
+
+Services:
+- **fraudshield** (port 8000): FastAPI inference API and Prometheus metrics at `/metrics`
+- **kafka** (port 9092): Apache Kafka broker
+- **neo4j** (ports 7474, 7687): Graph database
+- **prometheus** (port 9091): Metrics collection and alerting
+- **grafana** (port 3000): Dashboards and visualization
+
+Before starting the stack, copy `.env.example` to `.env`, replace every placeholder with a unique secret, and ensure the PostgreSQL URL contains the URL-encoded database password. All ports bind to `127.0.0.1` by default.
+
+## Monitoring
+
+Prometheus metrics are emitted automatically when `FRAUDSHIELD_MONITORING_ENABLED=true`:
+
+| Metric | Type | Labels | Description |
+|--------|------|--------|-------------|
+| `fraudshield_transactions_total` | Counter | source, status | Total transactions processed |
+| `fraudshield_inference_latency_seconds` | Histogram | model_name, source | Inference latency per prediction |
+| `fraudshield_fraud_probability` | Histogram | — | Distribution of fraud probability scores |
+| `fraudshield_risk_level_total` | Counter | level | Predictions grouped by risk level (HIGH/MEDIUM/LOW) |
+| `fraudshield_active_fraud_rings` | Gauge | — | Current number of detected fraud rings |
+| `fraudshield_drift_ratio` | Gauge | — | Latest data drift ratio from KS-test |
+
+Grafana is available at `localhost:3000`; use the password configured in `.env`.
+
 ## Preprocessing & Feature Engineering
 
 `fraudshield_preprocess` will:
@@ -162,6 +200,9 @@ export FRAUDSHIELD_KAFKA_BOOTSTRAP_SERVERS=localhost:9092
 export FRAUDSHIELD_NEO4J_URI=neo4j://localhost:7687
 export FRAUDSHIELD_NEO4J_USERNAME=neo4j
 export FRAUDSHIELD_NEO4J_PASSWORD=your_password
+export FRAUDSHIELD_KAFKA_BROKER_TYPE=kafka      # or "redpanda"
+export FRAUDSHIELD_MONITORING_ENABLED=true       # enable Prometheus metrics
+export FRAUDSHIELD_MONITORING_PORT=9090         # metrics HTTP port
 ```
 
 ## Airflow (Optional)
@@ -216,9 +257,17 @@ make typecheck   # mypy
 
 ### Notebooks
 
-- **[Pipeline Tutorial](notebooks/01_fraudshield_pipeline_tutorial.ipynb)** — End-to-end walkthrough
-- **[Exploratory Data Analysis](notebooks/exploratory_data_analysis.ipynb)** — Data exploration and visualization
-- **[Model Experimentation](notebooks/model_experimentation.ipynb)** — Training and hyperparameter tuning
+- **[Pipeline Tutorial](notebooks/01_fraudshield_pipeline_tutorial.ipynb)** — End-to-end batch pipeline: ingestion, preprocessing, drift gate, XGBoost training, evaluation, scoring a new event, and SHAP explanations
+- **[Real-Time Streaming & Graph](notebooks/02_realtime_streaming_and_graph.ipynb)** — Kafka/Redpanda broker factories, stateful streaming features, Louvain fraud-ring detection, hybrid risk scoring, and the in-process inference API
+- **[Exploratory Data Analysis](notebooks/exploratory_data_analysis.ipynb)** — Fraud balance, amount and temporal patterns, merchant/channel risk, and rolling-feature correlations
+- **[Model Experimentation](notebooks/model_experimentation.ipynb)** — Class-weighting experiments, decision-threshold sweep for best F1, and a Random Forest baseline
+
+All four execute cleanly end-to-end against the v3.0.0 codebase.
+
+### Scripts
+
+- `scripts/benchmark_performance.py` — TPS/latency benchmarks for C++ vs. NumPy data cleaning, the stateful feature store, the inference service, the hybrid risk engine, and Neo4j writes (live when reachable, simulated otherwise)
+- `scripts/verify_v3_components.py` — 43-check validation harness covering every v3.0.0 component and its integration with the batch pipeline
 
 ## C++ Extensions
 
@@ -231,33 +280,35 @@ Each has a `cpp_wrapper.py` that attempts the C++ import and falls back to pure 
 
 ## Model Evaluation Results
 
-Results on synthetic data (5,000 transactions, ~7% fraud rate) with threshold tuned for best F1.
+Verified against the committed artifacts in `data/models/` (synthetic data: 5,000 transactions, ~7% fraud rate; 1,000-row test split at 7.8% fraud). Reports are regenerated with `fraudshield_evaluate`; the confusion matrices below show the default 0.5 decision threshold.
 
 ### Random Forest
 
 ![Random Forest Confusion Matrix](data/plots/confusion_matrix_rf.png)
 
-| Metric    | Value  |
-|-----------|--------|
-| Accuracy  | 0.878  |
-| Precision | 0.300  |
-| Recall    | 0.423  |
-| F1 Score  | 0.351  |
-| ROC AUC   | 0.744  |
+| Metric            | Default (0.5) | Tuned (0.14, best F1) |
+|-------------------|---------------|-----------------------|
+| Accuracy          | 0.922         | 0.857                 |
+| Precision         | 0.000         | 0.259                 |
+| Recall            | 0.000         | 0.449                 |
+| F1 Score          | 0.000         | 0.329                 |
+| ROC AUC           | 0.751         | —                     |
+| Average Precision | 0.237         | —                     |
 
 ### XGBoost
 
 ![XGBoost Confusion Matrix](data/plots/confusion_matrix_xg.png)
 
-| Metric    | Value  |
-|-----------|--------|
-| Accuracy  | 0.864  |
-| Precision | 0.216  |
-| Recall    | 0.282  |
-| F1 Score  | 0.244  |
-| ROC AUC   | 0.719  |
+| Metric            | Default (0.5) | Tuned (0.05, best F1) |
+|-------------------|---------------|-----------------------|
+| Accuracy          | 0.912         | 0.863                 |
+| Precision         | 0.273         | 0.214                 |
+| Recall            | 0.077         | 0.282                 |
+| F1 Score          | 0.120         | 0.243                 |
+| ROC AUC           | 0.709         | —                     |
+| Average Precision | 0.191         | —                     |
 
-Note: These results are on synthetic data (5,000 samples) with multi-factor fraud patterns (amount anomaly, user behavior, merchant concentration, channel combo, time-of-day). The default threshold of 0.5 yields low recall; fraud detection typically requires a lower decision threshold. Use `notebooks/model_experimentation.ipynb` to sweep thresholds for your use case.
+Note: These results are on synthetic data with multi-factor fraud patterns (amount anomaly, user behavior, merchant concentration, channel combo, time-of-day). At the default threshold of 0.5 the Random Forest predicts no fraud at all — fraud detection typically requires a lower decision threshold, which roughly doubles F1 for both models. Use `notebooks/model_experimentation.ipynb` to sweep thresholds for your use case.
 
 ---
 

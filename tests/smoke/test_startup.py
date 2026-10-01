@@ -31,7 +31,7 @@ def test_airflow_dag_import():
     assert fraud_detection_dag.dag.dag_id == "fraud_detection_pipeline"
 
 
-def test_load_inference_artifacts(tmp_path, monkeypatch):
+def test_load_inference_artifacts(tmp_path, monkeypatch, request):
     train_df = pd.DataFrame(
         {
             "amount": [10.0, 20.0, 30.0, 40.0],
@@ -89,6 +89,8 @@ def test_load_inference_artifacts(tmp_path, monkeypatch):
     monkeypatch.setenv("FRAUDSHIELD_PREPROCESSOR_PATH", str(preprocessor_path))
     monkeypatch.setenv("FRAUDSHIELD_PREPROCESSING_METADATA_PATH", str(metadata_path))
     get_settings.cache_clear()
+    # Without this, the cached toy-model settings leak into later tests.
+    request.addfinalizer(get_settings.cache_clear)
 
     artifacts = load_inference_artifacts()
 

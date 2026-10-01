@@ -51,8 +51,9 @@ Safety features:
 
 ## Fallback Mechanism
 
-1. **Import time**: Attempts to load `_cpp.so` module
-2. **Runtime**: Falls back to pure Python if compilation failed
+1. **Import time**: Each `cpp_wrapper.py` attempts to import its compiled module
+   (`_feature_engineering_cpp` / `_data_cleaning_cpp`)
+2. **Runtime**: Falls back to pure Python/NumPy if the module is unavailable
 3. **Logging**: Emits warning on fallback
 
 ## Building
@@ -80,5 +81,8 @@ uv run python -c "from fraudshield.feature_engineering import cpp_wrapper; print
 | Remove Outliers (10K) | ~10ms | ~1ms | ~10x |
 
 C++ is optional. Python fallbacks are fully functional and tested.
+
+For current end-to-end numbers (including C++ vs. Python data cleaning), run
+`scripts/benchmark_performance.py`.
 
 ---
