@@ -170,7 +170,7 @@ sqlalchemy==2.0.50
     # via fraudshield
 starlette==1.3.1
     # via fastapi
-threadpoolctl==3.6.0
+threadpoolctl==3.7.0
     # via scikit-learn
 tqdm==4.68.2
     # via shap
