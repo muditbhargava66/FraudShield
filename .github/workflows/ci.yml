@@ -44,19 +44,19 @@ jobs:
 
     - name: Run data ingestion
       run: |
-        python -m fraudshield.data_ingestion.data_ingestion
+        uv run --no-sync python -m fraudshield.data_ingestion.data_ingestion
 
     - name: Run data preprocessing
       run: |
-        python -m fraudshield.data_preprocessing.data_preprocessing
+        uv run --no-sync python -m fraudshield.data_preprocessing.data_preprocessing
 
     - name: Train models
       run: |
-        python -m fraudshield.model_training.train_models
+        uv run --no-sync python -m fraudshield.model_training.train_models
 
     - name: Evaluate models
       run: |
-        python -m fraudshield.model_evaluation.evaluation
+        uv run --no-sync python -m fraudshield.model_evaluation.evaluation
 
     - name: Run tests
       env:
