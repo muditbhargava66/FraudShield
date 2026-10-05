@@ -166,7 +166,7 @@ six==1.17.0
     # via python-dateutil
 slicer==0.0.8
     # via shap
-sqlalchemy==2.0.50
+sqlalchemy==2.0.54
     # via fraudshield
 starlette==1.7.0
     # via fastapi
