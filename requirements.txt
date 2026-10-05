@@ -38,7 +38,7 @@ h11==0.16.0
     # via uvicorn
 idna==3.18
     # via anyio
-joblib==1.5.3
+joblib==1.6.0
     # via
     #   fraudshield
     #   scikit-learn
