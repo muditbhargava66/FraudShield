@@ -1,6 +1,6 @@
 # FraudShield - Quick Start Guide
 
-**123 passed, 1 skipped** | Lint: ruff + mypy |
+**124 passed, 1 skipped** | Lint: ruff + mypy |
 
 ---
 

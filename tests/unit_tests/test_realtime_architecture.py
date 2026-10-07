@@ -25,6 +25,30 @@ def test_hybrid_risk_engine_weighting():
     assert res_high["action"] == "BLOCK"
 
 
+def test_risk_engine_weight_normalization_is_runtime_stable():
+    """The 0.6/0.3/0.1 vector must normalize exactly on every supported runtime.
+
+    0.6 + 0.3 + 0.1 is 0.9999999999999999 under naive summation, which is what
+    builtin sum() did on CPython 3.10 and 3.11; 3.12 switched sum() to Neumaier
+    summation and started returning 1.0. Normalizing with sum() therefore made
+    every weight one ulp high on 3.10/3.11 only, which moved the unrounded
+    compound score across the 0.40 and 0.75 risk thresholds. The 0.5/0.3/0.2
+    vector in the test above hides this because 0.3 + 0.2 is exactly 0.5.
+    """
+    engine = HybridRiskEngine(ml_weight=0.6, graph_weight=0.3, rule_weight=0.1)
+
+    assert engine.ml_weight == 0.6
+    assert engine.graph_weight == 0.3
+    assert engine.rule_weight == 0.1
+
+    # A vector that does not sum to one still has to normalize to the same values.
+    scaled = HybridRiskEngine(ml_weight=6.0, graph_weight=3.0, rule_weight=1.0)
+
+    assert scaled.ml_weight == 0.6
+    assert scaled.graph_weight == 0.3
+    assert scaled.rule_weight == 0.1
+
+
 @patch("fraudshield.ml.explainability.shap_explainer.shap")
 def test_shap_explainer_mocked(mock_shap):
     """Verifies SHAP explainer initializes when shap library exists."""

@@ -29,7 +29,7 @@ pytest -q
 
 ## Running Checks
 
-- Unit + integration tests: `pytest tests/ -q` (123 passed, 1 skipped; the skip is the live-PostgreSQL integration test)
+- Unit + integration tests: `pytest tests/ -q` (124 passed, 1 skipped; the skip is the live-PostgreSQL integration test)
 - C++ extension vs. Python fallback equivalence: `make test-cpp`
 - Lint (Python): `ruff check src tests scripts`, or `make lint`
 - Type check: `mypy src/`, or `make typecheck`
