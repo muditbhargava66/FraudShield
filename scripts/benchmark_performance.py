@@ -26,6 +26,7 @@ from unittest.mock import MagicMock
 
 import numpy as np
 
+from fraudshield import __version__
 from fraudshield.config.settings import get_settings
 from fraudshield.core.risk_engine.engine import HybridRiskEngine
 from fraudshield.data_cleaning import cpp_wrapper
@@ -190,7 +191,7 @@ def benchmark_graph_operations(iterations: int = 100) -> None:
 
 def main() -> None:
     print("=" * 62)
-    print("  FraudShield v3.0.0 Performance Benchmarking Suite")
+    print(f"  FraudShield {__version__} Performance Benchmarking Suite")
     print("=" * 62)
 
     benchmark_data_cleaning(2000)

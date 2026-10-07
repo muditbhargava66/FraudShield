@@ -7,7 +7,7 @@ import logging
 from typing import Any, Dict, Optional
 
 from fraudshield.config.settings import RuntimeSettings, get_settings
-from fraudshield.graph.fraud_ring_detector import FraudRing, FraudRingDetector
+from fraudshield.graph.fraud_ring_detector import FraudRingDetector
 from fraudshield.graph.repository import FraudGraphRepository
 from fraudshield.runtime.resources import create_neo4j_driver
 
@@ -57,26 +57,6 @@ class FraudGraphBuilder:
             return self.repository.entity_risk(payload)
         except Exception as exc:
             logger.warning("Failed calculating graph risk: %s", exc)
-            return 0.0
-
-    def detect_fraud_rings(self, account_id: str) -> list[FraudRing]:
-        """Detect fraud rings containing the given account."""
-        if not self.ring_detector:
-            return []
-        try:
-            return self.ring_detector.detect_rings(account_id)
-        except Exception as exc:
-            logger.warning("Fraud ring detection failed for %s: %s", account_id, exc)
-            return []
-
-    def ring_risk(self, account_id: str) -> float:
-        """Return the maximum fraud ring risk score for the given account."""
-        if not self.ring_detector:
-            return 0.0
-        try:
-            return self.ring_detector.assess_account(account_id)
-        except Exception as exc:
-            logger.warning("Ring risk assessment failed for %s: %s", account_id, exc)
             return 0.0
 
     def close(self):

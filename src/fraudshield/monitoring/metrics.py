@@ -194,13 +194,6 @@ class MetricsCollector:
         return make_asgi_app(registry=cast(Any, self._registry))  # type: ignore[misc, arg-type]
 
 
-def setup_metrics(port: int = 9090) -> MetricsCollector:
-    """Create a singleton collector and start its HTTP server."""
-    collector = get_metrics()
-    collector.start_server(port=port)
-    return collector
-
-
 _collector_instance: Optional[MetricsCollector] = None
 
 

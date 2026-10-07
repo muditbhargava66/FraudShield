@@ -6,7 +6,8 @@ Thanks for helping improve FraudShield. This guide covers the repo layout, local
 
 - Python package: `src/fraudshield/`
 - Python tests: `tests/`
-- C++ tests: `tests/cpp/` (run separately)
+- C++ extension equivalence tests: `tests/unit_tests/test_cpp_extensions.py`
+- GoogleTest sources: `tests/cpp/` (not wired into any CMake target; nothing compiles or runs them)
 - Airflow DAGs: `src/fraudshield/data_pipeline/airflow_dags/`
 - Sample data + generator: `data/raw/synthetic_fraud_data.py`, `data/raw/synthetic_fraud_data.csv`
 
@@ -28,10 +29,16 @@ pytest -q
 
 ## Running Checks
 
-- Unit + integration tests: `pytest -q`
-- Lint (Python): `flake8 .`
+- Unit + integration tests: `pytest tests/ -q` (124 passed, 1 skipped; the skip is the live-PostgreSQL integration test)
+- C++ extension vs. Python fallback equivalence: `make test-cpp`
+- Lint (Python): `ruff check src tests scripts`, or `make lint`
+- Type check: `mypy src/`, or `make typecheck`
+- Format: `ruff format src tests scripts`, or `make format`
+- Component verification harness (43 checks): `make verify`
+- Dependency audit: `make audit`
 - Packaging sanity: `python -m build`
-- Prettier (repo-wide): `prettier --check .`
+
+The lint scope is `src tests scripts` in the Makefile, `tox.ini`, and CI alike. CI runs on `ubuntu-24.04` with Python 3.10 only; `tox` covers 3.10-3.13.
 
 ## Adding Features (Feature Engineering)
 

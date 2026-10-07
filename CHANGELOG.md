@@ -5,6 +5,48 @@ All notable changes to FraudShield are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.1.0] - 2026-10-08
+
+### Added
+- `tests/unit_tests/test_cpp_extensions.py`: 27 tests asserting that the compiled pybind11 extensions and their pure-Python fallbacks return identical results (missing-value removal, z-score outlier removal, moving average, EMA, RSI) and that both paths handle empty, all-NaN, constant, single-element, and out-of-range arguments the same way.
+- `infra/.env.example`: template for the four variables `docker compose` requires. Compose loads `.env` from its own directory, so the root `.env.example` alone left a fresh clone unable to start the stack.
+- Docker Compose healthchecks for every infrastructure service, `condition: service_healthy` startup ordering, and `restart: unless-stopped`; the app image declares a `HEALTHCHECK` against `/health`.
+- Makefile `verify` (component harness) and `audit` (pip-audit on the locked all-extras export) targets; `make test-cpp` now runs the extension equivalence tests.
+- CI gate for `scripts/verify_v3_components.py`, and `astral-sh/setup-uv` replacing the `python -m pip install uv` bootstrap.
+- `FRAUDSHIELD_PROJECT_ROOT` environment override, documented in `.env.example` along with the previously undocumented `FRAUDSHIELD_LOG_FORMAT`, `FRAUDSHIELD_KAFKA_POLL_TIMEOUT_SECONDS`, `FRAUDSHIELD_AIRFLOW_DAGS_FOLDER`, and `FRAUDSHIELD_AIRFLOW_BASE_LOG_FOLDER`.
+
+### Changed
+- Dependency refresh: click 8.4.2 to 8.5.0, confluent-kafka 2.14.2 to 2.15.1 (librdkafka 2.15.1), joblib 1.5.3 to 1.6.0, neo4j 6.2.0 to 6.3.1, pybind11 3.0.4 to 3.1.0, pydantic 2.13.4 to 2.13.5 (pydantic-core 2.46.4 to 2.46.5), pytz 2026.2 to 2026.4, sqlalchemy 2.0.50 to 2.0.54, typing-inspection 0.4.2 to 0.4.4. Verified with ruff, mypy (43 source files), 124 passing tests locally and 125 in CI (the PostgreSQL service container makes the live integration test runnable there), the 43-check harness, a live Neo4j 6.3.1 driver run against a 5.12.0 server (graph build plus ring detection), a 25-message Kafka produce/consume roundtrip through the production consumer loop, live `/health` and `/predict` calls with SHAP explanations, and reloads of all eight committed model artifacts under joblib 1.6.0.
+- FastAPI stays at 0.136.3: `apache-airflow-core` 3.3.2 (the latest release) requires `fastapi>=0.129.0,<0.137.0`, so 0.142.2 is unresolvable while the `airflow` extra is in the lock. `.github/dependabot.yml` now ignores `fastapi>=0.137` and `neo4j>=6.4` (the 6.4.0 driver has an open busy-loop regression, neo4j-python-driver#1360) until the upstream constraints change.
+- The version is declared once. `fraudshield.__version__` is read from the installed distribution metadata and the FastAPI app reports it, replacing four independent copies of the string.
+- Dockerfile is now a genuine two-stage build: the builder compiles the extensions with `uv sync --no-dev --no-editable --locked`, and the runtime stage contains only the resolved virtualenv plus `data/`, so no compiler toolchain ships to production. The entrypoint invokes `uvicorn` directly instead of `uv run`, which previously attempted a dependency re-sync at container start.
+- Removed `EXPOSE 9090` from the image; metrics are served by the ASGI app mounted on port 8000.
+- CI pins `ubuntu-24.04` (GitHub migrates `ubuntu-latest` to Ubuntu 26 on 2026-10-19), runs on `version-*` branches as well as `main`, and sets `concurrency` and `timeout-minutes`.
+- `make lint`, `make format`, and the tox ruff environment now cover `scripts/` as CI does; `make install` and `make build-cpp` use `uv sync --locked` instead of `uv pip install -r requirements.txt`, removing the second source of truth for dependencies.
+- `build-system.requires` pins `pybind11>=3.1.0,<3.2` so the compiled ABI matches the lockfile; pybind11 3.1.0 raised `PYBIND11_INTERNALS_VERSION` from 11 to 12, and the unpinned requirement let the isolated build environment drift from the locked version.
+- Project-root resolution now detects the source layout, honors `FRAUDSHIELD_PROJECT_ROOT`, and otherwise defaults to the working directory, so a wheel install no longer resolves `data/` and the model directory inside `site-packages`. The Airflow DAGs folder default resolves inside the installed package for the same reason.
+- `TransactionConsumer` sends `client.id` from `FRAUDSHIELD_KAFKA_CONSUMER_CLIENT_ID`, a setting that was declared, documented, and read by nothing.
+
+### Fixed
+- `HybridRiskEngine` normalized its weights with the builtin `sum()`, whose float behaviour changed in CPython 3.12 (Neumaier summation). On 3.10 and 3.11 `sum((0.6, 0.3, 0.1))` is `0.9999999999999999`, so every normalized weight came out one ulp high and `ml_weight` was `0.6000000000000001` rather than `0.6`. Published scores were unaffected because they are rounded to four decimals, but the risk level is chosen from the unrounded score, so a transaction sitting exactly on the 0.40 or 0.75 boundary could classify differently between runtimes. Now uses `math.fsum`, which is correctly rounded on every supported version. CI on Python 3.10 caught this; the local 3.13 suite could not.
+- `calculate_exponential_moving_average` crashed the interpreter (SIGSEGV) on an empty input array: the C++ implementation wrote `ema[0]` without a bounds check, and the Python fallback raised `IndexError` for the same input. Both now return an empty array. A segfault is not catchable, so the wrapper's fallback could not mask it.
+- The C++ RSI divided its initial average gain and loss by `window_size` instead of `window_size - 1`, so the extension disagreed with the Python reference on every value it produced.
+- `remove_outliers` diverged on non-finite input: the C++ path returned the data unchanged because NaN poisoned the mean and no z-score comparison matched, while the Python fallback returned an empty array. Both now drop non-finite values and skip the z-score test when fewer than two finite values remain, matching the `remove_missing_values` → `remove_outliers` order the preprocessing pipeline already uses.
+- `calculate_moving_average` returned `[nan]` for `window_size=0`, and `calculate_relative_strength_index` surfaced `ValueError: negative dimensions are not allowed` when the window exceeded the series length. Both now raise a clear `ValueError`, and a moving average over a series shorter than its window returns an empty array.
+- `calculate_exponential_moving_average` validates `alpha` on both paths; previously only the C++ implementation rejected values outside `[0, 1]`.
+- The verification harness asserted the literal string `EXPOSE 8000 9090` in the Dockerfile. It now checks the properties that matter (multi-stage layout, locked install, non-root user, healthcheck) and additionally validates compose healthchecks, restart policies, and the presence of `infra/.env.example`.
+- The Airflow DAG bootstrap no longer prepends `site-packages` to `sys.path` when the package is installed instead of running from a source tree.
+
+### Removed
+- `runtime.resources.verify_sqlalchemy_engine()`, `create_kafka_producer()`, and `create_kafka_consumer()`: unused, and the latter two duplicated `streaming.broker` while silently omitting SASL credentials and `broker_type`. Use `create_broker_producer()` / `create_broker_consumer()`.
+- `monitoring.setup_metrics()`: unused wrapper over `get_metrics().start_server()`.
+- `FraudGraphBuilder.detect_fraud_rings()` and `FraudGraphBuilder.ring_risk()`: unused wrappers that swallowed exceptions and returned empty or zero results. Call `FraudRingDetector.detect_rings()` / `assess_account()` directly.
+- The pydantic v1 `dict()` compatibility branch in `TransactionRequest.to_event()` (unreachable, since the module imports `ConfigDict` at module scope) and the SQLAlchemy 1.4 `future=True` no-op in `create_sqlalchemy_engine()`.
+
+### Security
+- Pinned `fsspec>=2026.6.0` in override-dependencies to resolve CVE-2026-104851 (GHSA-27vj-qcqg-25rc): `fsspec`'s Kerchunk `ReferenceFileSystem` rendered attacker-controlled reference JSON through unsandboxed Jinja2 templates. Transitive via `apache-airflow-task-sdk` and `universal-pathlib`, so it only reaches the optional `airflow` extra and never the runtime export; resolves to 2026.9.0. `pip-audit --strict --no-deps` is clean for both the runtime and the all-extras exports.
+- The production image no longer contains `build-essential` or `cmake`, shrinking the runtime attack surface.
+
 ## [3.0.0] - 2026-10-02
 
 ### Added

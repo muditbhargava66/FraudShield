@@ -7,9 +7,9 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
-# Ensure src/ is on the path for DAG imports (src layout).
+# Ensure src/ is on the path for DAG imports (src layout only; installed layouts resolve normally).
 SRC_ROOT = Path(__file__).resolve().parents[3]
-if str(SRC_ROOT) not in sys.path:
+if (SRC_ROOT / "fraudshield").is_dir() and str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
 from fraudshield.config.settings import configure_airflow_environment  # noqa: E402

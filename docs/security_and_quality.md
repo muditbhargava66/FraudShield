@@ -41,8 +41,9 @@ Secrets are supplied through environment variables, never hardcoded:
 - Broker credentials use `FRAUDSHIELD_KAFKA_SASL_USERNAME` /
   `FRAUDSHIELD_KAFKA_SASL_PASSWORD`; Neo4j uses `FRAUDSHIELD_NEO4J_PASSWORD`.
 
-`.env` files are gitignored (`.env` and `.env.*` are excluded, only `.env.example`
-is committed). The Docker Compose stack reads `infra/.env` and fails fast (`:?`
+`.env` files are gitignored (`.env` and `.env.*` are excluded; only the
+`.env.example` templates are committed, at the repository root and in `infra/`).
+The Docker Compose stack reads `infra/.env` and fails fast (`:?`
 modifier) if `FRAUDSHIELD_NEO4J_PASSWORD`, `FRAUDSHIELD_POSTGRES_PASSWORD`,
 `FRAUDSHIELD_DATABASE_URL`, or `FRAUDSHIELD_GRAFANA_ADMIN_PASSWORD` is missing,
 so no placeholder password can reach a running stack.
@@ -55,25 +56,43 @@ so no placeholder password can reach a running stack.
 
 ### Dependency Supply Chain
 
-- Dependencies resolve through **uv** with a committed `uv.lock`; CI and the
-  Docker image install with `uv sync --frozen` so builds reproduce the audited lockfile.
+- Dependencies resolve through **uv** with a committed `uv.lock`; CI installs with
+  `uv sync --all-extras --locked` and the Docker builder stage with
+  `uv sync --no-dev --no-editable --locked`, so builds reproduce the audited lockfile.
 - Known-vulnerable transitive dependencies are force-upgraded via
   `[tool.uv] override-dependencies` in `pyproject.toml`:
-  `aiosmtplib>=5.1.2`, `apache-airflow-providers-smtp>=3.0.0`,
-  `cryptography>=50.0.0`, `click>=8.3.3`, `idna>=3.15`, `mako>=1.3.11`,
-  `pillow>=12.3.0`, `pydantic-settings>=2.14.2`, `pygments>=2.20.0`,
-  `requests>=2.33.0`, `setuptools>=83.0.0`, `sqlparse>=0.6.0`,
-  `starlette>=1.3.1`, `urllib3>=2.7.0`.
+  `aiosmtplib>=5.1.2`, `anyio>=4.14.2`,
+  `apache-airflow-providers-smtp>=3.0.0`, `click>=8.3.3`,
+  `cryptography>=50.0.0`, `fsspec>=2026.6.0`, `idna>=3.15`,
+  `mako>=1.3.11`, `pillow>=12.3.0`, `pydantic-settings>=2.14.2`,
+  `pygments>=2.20.0`, `pyjwt>=2.15.0`, `requests>=2.33.0`,
+  `setuptools>=83.0.0`, `sqlparse>=0.6.0`, `starlette>=1.3.1`,
+  `urllib3>=2.8.0`, `virtualenv>=21.7.13`.
+- CI runs on `ubuntu-24.04` with Python 3.10 and `astral-sh/setup-uv@v10.0.0`. The
+  gates are: `ruff check src tests scripts`, `mypy src/`, `pytest tests/`,
+  `python scripts/verify_v3_components.py` (43 checks), `python -m build`, and the
+  pip-audit gate below. Triggers are pushes to `main` and `version-*` plus pull
+  requests to `main`.
 - CI runs a **pip-audit gate** (`.github/workflows/ci.yml`, `dependency-audit`
   job): `uv export --all-extras --no-dev --locked` writes the resolved
   requirements, then `uvx pip-audit --no-deps --disable-pip --strict` fails the
-  build on any known vulnerability.
+  build on any known vulnerability. `make audit` runs the same check locally.
 
 ### Container and Network Hardening
 
-- The `Dockerfile` creates a dedicated `fraudshield` system user and drops
-  privileges with `USER fraudshield` before serving; the image is built
-  multi-stage with `uv sync --no-dev --frozen`.
+- The `Dockerfile` is a two-stage build. The `builder` stage installs
+  `build-essential` and `cmake` and compiles the pybind11 extensions with
+  `uv sync --no-dev --no-editable --locked`; the `runtime` stage copies only
+  `/app/.venv` plus `data/`, so no compiler toolchain ships to production.
+- The runtime stage creates a dedicated `fraudshield` system user, `chown`s
+  `/app`, and drops privileges with `USER fraudshield` before serving.
+- The image declares `EXPOSE 8000` only (metrics are served by the ASGI app
+  mounted on the same port) and a `HEALTHCHECK` against `/health`.
+- The entrypoint invokes `uvicorn` directly rather than `uv run`, so no
+  dependency re-sync is attempted at container start.
+- Every infrastructure service in `infra/docker-compose.yml` declares a
+  `healthcheck`, dependents start only on `condition: service_healthy`, and all
+  seven services use `restart: unless-stopped`.
 - Every host port in `infra/docker-compose.yml` is bound to `127.0.0.1`
   (Zookeeper 2181, Kafka 9092, Neo4j 7474/7687, PostgreSQL 5432, app 8000,
   Prometheus 9091, Grafana 3000), so the local stack is not reachable from

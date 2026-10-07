@@ -87,7 +87,7 @@ After starting the stack, create dashboards in Grafana:
 ## Performance: Targets vs Measured
 
 Measured on Apple Silicon (local machine) with `scripts/benchmark_performance.py`
-against the v3.0.0 artifacts; PRD targets in parentheses.
+against the committed v3 model artifacts; PRD targets in parentheses.
 
 | Component | Measured | PRD target | Status |
 |---|---|---|---|

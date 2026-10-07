@@ -57,7 +57,10 @@ class HybridRiskEngine:
         weights = (float(ml_weight), float(graph_weight), float(rule_weight))
         if any(not math.isfinite(weight) or weight < 0 for weight in weights):
             raise ValueError("Risk engine weights must be finite, non-negative values.")
-        total = sum(weights)
+        # fsum, not sum: CPython 3.12 switched sum() to Neumaier summation, so
+        # sum((0.6, 0.3, 0.1)) is 1.0 there but 0.9999999999999999 on 3.10/3.11,
+        # which shifted every normalized weight by one ulp depending on the runtime.
+        total = math.fsum(weights)
         if total <= 0:
             raise ValueError("At least one risk engine weight must be greater than zero.")
         self.ml_weight, self.graph_weight, self.rule_weight = (weight / total for weight in weights)

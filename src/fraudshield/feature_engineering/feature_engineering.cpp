@@ -41,6 +41,9 @@ public:
         if (alpha < 0.0 || alpha > 1.0) {
             throw std::invalid_argument("Invalid alpha value.");
         }
+        if (data.empty()) {
+            return std::vector<double>();
+        }
 
         std::vector<double> ema(data.size());
         ema[0] = data[0];
@@ -74,8 +77,8 @@ public:
             }
         }
 
-        double avg_gain = std::accumulate(gains.begin(), gains.end(), 0.0) / window_size;
-        double avg_loss = std::accumulate(losses.begin(), losses.end(), 0.0) / window_size;
+        double avg_gain = std::accumulate(gains.begin(), gains.end(), 0.0) / (window_size - 1);
+        double avg_loss = std::accumulate(losses.begin(), losses.end(), 0.0) / (window_size - 1);
 
         double rs = (avg_loss == 0.0) ? std::numeric_limits<double>::infinity() : (avg_gain / avg_loss);
         rsi[0] = 100.0 - (100.0 / (1.0 + rs));
