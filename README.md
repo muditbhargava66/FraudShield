@@ -233,7 +233,7 @@ If you switch to `LocalExecutor`, switch the Airflow metadata database off SQLit
 - **mypy** for type checking
 - **C++ extensions** are covered by `tests/unit_tests/test_cpp_extensions.py` (27 tests), which asserts the compiled pybind11 path and the pure-Python fallback return identical results. The GoogleTest sources under `tests/cpp/` are not wired into any CMake target, so nothing compiles or runs them.
 
-The suite reports 124 passed and 1 skipped; the skip is the live-PostgreSQL integration test, which runs only when `FRAUDSHIELD_DATABASE_URL` points at a reachable database. CI runs Python 3.10 only, while `tox` covers 3.10-3.13.
+The suite collects 125 tests. Without a database it reports 124 passed and 1 skipped; the skip is `tests/integration_tests/test_postgresql.py`, which runs only when `FRAUDSHIELD_DATABASE_URL` points at a reachable database. CI starts a `postgres:15-alpine` service container and sets that variable, so the same suite reports 125 passed and 0 skipped there. CI runs Python 3.10 only, while `tox` covers 3.10-3.13.
 
 Run all tests:
 
