@@ -20,22 +20,20 @@ Step-by-step instructions for setting up FraudShield locally.
 
 2. Install dependencies with [uv](https://docs.astral.sh/uv/):
    ```bash
-   uv pip install -e .
+   uv sync --all-extras --locked   # or: make install
    ```
-   Or with pip:
-   ```bash
-   pip install -e .
-   ```
+   A plain `pip install -e ".[dev]"` also works, but it resolves fresh instead of
+   installing the audited `uv.lock`.
 
-3. Build C++ extensions (optional):
+3. Rebuild the C++ extensions explicitly (the sync above already compiles them):
    ```bash
-   uv pip install -e .   # triggers CMake + pybind11
+   make build-cpp   # uv sync --all-extras --locked --reinstall-package fraudshield
    ```
 
 4. Verify installation:
    ```bash
    uv run pytest tests/ -v
-   uv run ruff check src tests
+   uv run ruff check src tests scripts
    uv run mypy src/
    ```
 
@@ -68,13 +66,18 @@ Step-by-step instructions for setting up FraudShield locally.
 For the streaming pipeline (Kafka + Neo4j + monitoring stack):
 
 ```bash
+# Application settings, read from the repository root
+cp .env.example .env
+
+# Compose stack secrets. Docker Compose reads .env from the compose file's own
+# directory, so this file must be infra/.env, not the repository root.
+cp infra/.env.example infra/.env
+# Edit both files and replace every placeholder with a unique secret before
+# continuing. Required by infra/.env (startup fails if missing):
+# FRAUDSHIELD_NEO4J_PASSWORD, FRAUDSHIELD_POSTGRES_PASSWORD,
+# FRAUDSHIELD_DATABASE_URL, FRAUDSHIELD_GRAFANA_ADMIN_PASSWORD
+
 cd infra
-# Docker Compose reads .env from its own directory, so create it here
-cp ../.env.example .env
-# Edit .env and replace every password placeholder before continuing.
-# Required by compose (startup fails if missing): FRAUDSHIELD_NEO4J_PASSWORD,
-# FRAUDSHIELD_POSTGRES_PASSWORD, FRAUDSHIELD_DATABASE_URL,
-# FRAUDSHIELD_GRAFANA_ADMIN_PASSWORD
 docker compose up -d
 ```
 
@@ -140,12 +143,12 @@ uv run fraudshield_evaluate --model_path data/models/xgboost.pkl
 | Feature values look wrong | This is expected — rolling windows use `closed="left"` to prevent data leakage |
 | Prometheus metrics not appearing | Set `FRAUDSHIELD_MONITORING_ENABLED=true` and request `http://localhost:8000/metrics` |
 | Grafana shows no data | Ensure Prometheus datasource is configured at `http://prometheus:9090` |
-| `docker compose up` fails with "required variable ... is missing" | Create `infra/.env` (compose reads `.env` from its own directory) with `FRAUDSHIELD_NEO4J_PASSWORD`, `FRAUDSHIELD_POSTGRES_PASSWORD`, `FRAUDSHIELD_DATABASE_URL`, `FRAUDSHIELD_GRAFANA_ADMIN_PASSWORD` |
+| `docker compose up` fails with "required variable ... is missing" | Copy `infra/.env.example` to `infra/.env` (compose reads `.env` from its own directory) and set `FRAUDSHIELD_NEO4J_PASSWORD`, `FRAUDSHIELD_POSTGRES_PASSWORD`, `FRAUDSHIELD_DATABASE_URL`, `FRAUDSHIELD_GRAFANA_ADMIN_PASSWORD` |
 | PostgreSQL integration test skips or fails | `tests/integration_tests/test_postgresql.py` needs a live database; it skips unless `FRAUDSHIELD_DATABASE_URL` points at a reachable PostgreSQL instance |
 
 ## Verification
 
-Run the comprehensive v3.0.0 component verification:
+Run the comprehensive v3 component verification:
 
 ```bash
 uv run python scripts/verify_v3_components.py

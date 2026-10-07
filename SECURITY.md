@@ -2,12 +2,13 @@
 
 ## Supported Versions
 
-| Version | Supported          |
-|---------|--------------------|
-| 3.0.x   | :white_check_mark: |
-| 2.3.x   | :white_check_mark: |
-| 2.2.x   | :x:                |
-| < 2.2   | :x:                |
+| Version | Supported |
+|---------|-----------|
+| 3.1.x   | Yes       |
+| 3.0.x   | Yes       |
+| 2.3.x   | Yes       |
+| 2.2.x   | No        |
+| < 2.2   | No        |
 
 ## Reporting a Vulnerability
 

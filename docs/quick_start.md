@@ -1,6 +1,6 @@
 # FraudShield - Quick Start Guide
 
-**97 tests** | Lint: ruff + mypy |
+**123 passed, 1 skipped** | Lint: ruff + mypy |
 
 ---
 
@@ -30,13 +30,13 @@ pip install -e .
 uv run pytest tests/ -v
 
 # Lint
-uv run ruff check src tests
+uv run ruff check src tests scripts
 
 # Type check
 uv run mypy src/
 
 # Format
-uv run ruff format src tests
+uv run ruff format src tests scripts
 ```
 
 ### Using Makefile
@@ -60,7 +60,10 @@ uv run python -c "from fraudshield.feature_engineering import cpp_wrapper; print
 uv pip install -e .
 ```
 
-C++ is optional. Python fallbacks work and are fully tested.
+C++ is optional. Python fallbacks work and are fully tested. Run `make test-cpp` to
+assert the compiled extensions and the pure-Python fallbacks return identical results.
+The GoogleTest sources under `tests/cpp/` are not wired into any CMake target, so
+nothing compiles or runs them.
 
 ---
 
@@ -128,7 +131,7 @@ airflow scheduler &
 
 ---
 
-## v3.0.0 Features
+## v3 Features
 
 ### Verify All Components
 
@@ -185,7 +188,7 @@ risk = detector.assess_account(account_id="U_102")
 
 ### Inference API
 
-Start the FastAPI app (serves `/predict`, `/health`, and `/metrics/` on port 8000):
+Start the FastAPI app (serves `POST /predict`, `GET /health`, and the Prometheus metrics app mounted at `FRAUDSHIELD_MONITORING_METRICS_PATH`, default `/metrics`, on port 8000):
 
 ```bash
 uv run uvicorn fraudshield.ml.inference.api:app --port 8000
@@ -221,12 +224,17 @@ Both backends use the `confluent-kafka` client (`get_broker_factory("kafka" | "r
 ### Full Stack with Docker
 
 ```bash
-cd infra
-# Docker Compose reads .env from its own directory, so create it here
-cp ../.env.example .env
-# Edit .env and replace every password placeholder before continuing.
-# Required by compose: FRAUDSHIELD_NEO4J_PASSWORD, FRAUDSHIELD_POSTGRES_PASSWORD,
+# Application settings, read from the repository root
+cp .env.example .env
+
+# Compose stack secrets. Docker Compose reads .env from the compose file's own
+# directory, so this file must be infra/.env.
+cp infra/.env.example infra/.env
+# Edit both files and replace every placeholder with a unique secret.
+# Required by infra/.env: FRAUDSHIELD_NEO4J_PASSWORD, FRAUDSHIELD_POSTGRES_PASSWORD,
 # FRAUDSHIELD_DATABASE_URL, FRAUDSHIELD_GRAFANA_ADMIN_PASSWORD
+
+cd infra
 docker compose up -d
 ```
 

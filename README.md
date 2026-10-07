@@ -3,7 +3,7 @@
 # FraudShield
 
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-3.0.0-blue.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-3.1.0-blue.svg)](CHANGELOG.md)
 [![Python Version](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
 [![Ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)](https://github.com/astral-sh/ruff)
 [![Checked with mypy](https://www.mypy-lang.org/static/mypy_badge.svg)](https://mypy-lang.org/)
@@ -40,7 +40,7 @@ Four CLI entry points run sequentially:
 - **Graph builder** upserts transactions into Neo4j and computes entity risk.
 - **Hybrid risk engine** blends ML score (0.6), graph score (0.3), and rule breaches (0.1). Optional ring detector boosts graph score when coordinated fraud rings are detected.
 - **SHAP explainability** provides per-transaction feature contributions for high-risk cases.
-- **Prometheus metrics** emitted automatically: transaction throughput, inference latency, fraud probability distribution, risk levels, active fraud rings, and data drift ratio.
+- **Prometheus metrics** emitted automatically: transaction throughput, inference latency, fraud probability distribution, risk levels, active fraud rings, data drift ratio, and the drifted-feature count.
 
 ### Inference API
 
@@ -53,7 +53,7 @@ FastAPI app with three endpoints:
 
 - **Kafka & Neo4j integration** for real-time streaming and graph-based entity analysis
 - **Fraud ring detection** via Louvain community detection on Neo4j 2-hop neighborhood subgraphs (shared devices/IPs connecting accounts)
-- **Prometheus monitoring** with counters, histograms, and gauges for transactions, inference latency, fraud probability, risk levels, and drift ratios
+- **Prometheus monitoring** with counters, histograms, and gauges for transactions, inference latency, fraud probability, risk levels, drift ratio, and drifted-feature count
 - **Explainable AI** via SHAP (TreeSHAP) for transparent scoring
 - **Data drift validation** (KS test) in the Airflow DAG to catch distributional shifts before retraining
 - **Data leakage prevention** in feature engineering (`closed="left"` rolling windows, `shift(1)` z-scores)
@@ -137,20 +137,24 @@ uvicorn fraudshield.ml.inference.api:app --reload
 
 ## Docker
 
-The project includes a Dockerfile and docker-compose setup with Kafka, Neo4j, Prometheus, and Grafana:
+The project includes a multi-stage Dockerfile and a docker-compose setup with Zookeeper, Kafka, Neo4j, PostgreSQL, Prometheus, and Grafana:
 
 ```bash
 docker compose -f infra/docker-compose.yml up --build
 ```
 
 Services:
-- **fraudshield** (port 8000): FastAPI inference API and Prometheus metrics at `/metrics`
-- **kafka** (port 9092): Apache Kafka broker
+- **zookeeper** (port 2181): Kafka coordination
+- **kafka** (port 9092): Apache Kafka broker (Confluent 7.5.0)
 - **neo4j** (ports 7474, 7687): Graph database
+- **postgres** (port 5432): PostgreSQL 15 metadata and transaction store
+- **fraudshield** (port 8000): FastAPI inference API and Prometheus metrics at `/metrics`
 - **prometheus** (port 9091): Metrics collection and alerting
 - **grafana** (port 3000): Dashboards and visualization
 
-Before starting the stack, copy `.env.example` to `.env`, replace every placeholder with a unique secret, and ensure the PostgreSQL URL contains the URL-encoded database password. All ports bind to `127.0.0.1` by default.
+Every infrastructure service declares a `healthcheck`, dependents start only on `condition: service_healthy`, and all seven services use `restart: unless-stopped`.
+
+Before starting the stack, copy both templates: `.env.example` to `.env` for the application settings, and `infra/.env.example` to `infra/.env` for the compose stack. Compose reads `.env` from the compose file's own directory (`infra/`), not from the repository root, so both files are required for a full stack run. Replace every placeholder with a unique secret and ensure `FRAUDSHIELD_DATABASE_URL` contains the URL-encoded PostgreSQL password. All ports bind to `127.0.0.1` by default.
 
 ## Monitoring
 
@@ -164,8 +168,9 @@ Prometheus metrics are emitted automatically when `FRAUDSHIELD_MONITORING_ENABLE
 | `fraudshield_risk_level_total` | Counter | level | Predictions grouped by risk level (HIGH/MEDIUM/LOW) |
 | `fraudshield_active_fraud_rings` | Gauge | — | Current number of detected fraud rings |
 | `fraudshield_drift_ratio` | Gauge | — | Latest data drift ratio from KS-test |
+| `fraudshield_drifted_features` | Gauge | — | Number of features that drifted beyond threshold |
 
-Grafana is available at `localhost:3000`; use the password configured in `.env`.
+Grafana is available at `localhost:3000`; use the password configured as `FRAUDSHIELD_GRAFANA_ADMIN_PASSWORD` in `infra/.env`.
 
 ## Preprocessing & Feature Engineering
 
@@ -226,7 +231,9 @@ If you switch to `LocalExecutor`, switch the Airflow metadata database off SQLit
 - **tox** for multi-version testing (3.10, 3.11, 3.12, 3.13)
 - **ruff** for linting and formatting
 - **mypy** for type checking
-- C++ tests in `tests/cpp` run separately
+- **C++ extensions** are covered by `tests/unit_tests/test_cpp_extensions.py` (27 tests), which asserts the compiled pybind11 path and the pure-Python fallback return identical results. The GoogleTest sources under `tests/cpp/` are not wired into any CMake target, so nothing compiles or runs them.
+
+The suite reports 123 passed and 1 skipped; the skip is the live-PostgreSQL integration test, which runs only when `FRAUDSHIELD_DATABASE_URL` points at a reachable database. CI runs Python 3.10 only, while `tox` covers 3.10-3.13.
 
 Run all tests:
 
@@ -248,10 +255,18 @@ pytest tests/integration_tests/ -v
 pytest tests/smoke/ -v
 ```
 
+Run the C++ extension equivalence tests, the component verification harness, and the dependency audit:
+
+```bash
+make test-cpp   # pytest tests/unit_tests/test_cpp_extensions.py
+make verify     # python scripts/verify_v3_components.py (43 checks)
+make audit      # pip-audit against the locked all-extras export
+```
+
 Run linting and type checking:
 
 ```bash
-make lint        # ruff check
+make lint        # ruff check src tests scripts
 make typecheck   # mypy
 ```
 
@@ -262,12 +277,12 @@ make typecheck   # mypy
 - **[Exploratory Data Analysis](notebooks/exploratory_data_analysis.ipynb)** — Fraud balance, amount and temporal patterns, merchant/channel risk, and rolling-feature correlations
 - **[Model Experimentation](notebooks/model_experimentation.ipynb)** — Class-weighting experiments, decision-threshold sweep for best F1, and a Random Forest baseline
 
-All four execute cleanly end-to-end against the v3.0.0 codebase.
+All four execute cleanly end-to-end against the v3 codebase.
 
 ### Scripts
 
 - `scripts/benchmark_performance.py` — TPS/latency benchmarks for C++ vs. NumPy data cleaning, the stateful feature store, the inference service, the hybrid risk engine, and Neo4j writes (live when reachable, simulated otherwise)
-- `scripts/verify_v3_components.py` — 43-check validation harness covering every v3.0.0 component and its integration with the batch pipeline
+- `scripts/verify_v3_components.py` — 43-check validation harness covering every v3 component and its integration with the batch pipeline
 
 ## C++ Extensions
 

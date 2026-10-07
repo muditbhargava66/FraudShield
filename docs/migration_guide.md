@@ -1,4 +1,4 @@
-# Migration Guide: v2.2.0 → v2.3.0 → v3.0.0
+# Migration Guide: v2.2.0 → v2.3.0 → v3.0.0 → v3.1.0
 
 ## Overview of Changes
 
@@ -138,7 +138,7 @@ uv run fraudshield_train --model both
 
 ```bash
 # 1. Pull latest
-git checkout version-3.0.0
+git checkout version-3.1.0
 
 # 2. Reinstall (picks up networkx + prometheus_client)
 uv sync
@@ -154,14 +154,15 @@ uv run fraudshield_evaluate --model_path data/models/xgboost.pkl
 
 # 5. Verify quality
 uv run pytest tests/ -v
-uv run ruff check src tests
+uv run ruff check src tests scripts
 uv run mypy src/
 
 # 6. (Optional) Start full Docker stack
-cd infra
-cp ../.env.example .env
-# Edit .env: FRAUDSHIELD_NEO4J_PASSWORD, FRAUDSHIELD_POSTGRES_PASSWORD,
+cp .env.example .env                 # application settings, repository root
+cp infra/.env.example infra/.env     # compose stack secrets
+# Edit both: FRAUDSHIELD_NEO4J_PASSWORD, FRAUDSHIELD_POSTGRES_PASSWORD,
 # FRAUDSHIELD_DATABASE_URL, FRAUDSHIELD_GRAFANA_ADMIN_PASSWORD are required
+cd infra
 docker compose up -d
 ```
 
@@ -211,6 +212,112 @@ docker compose up -d
 ```bash
 git checkout version-2.3.0
 uv pip install -e .
+uv run fraudshield_ingest
+uv run fraudshield_preprocess
+uv run fraudshield_train --model both
+```
+
+---
+
+## v3.0.0 → v3.1.0
+
+### Overview of Changes
+
+- **Dependency refresh**: click 8.5.0, confluent-kafka 2.15.1, joblib 1.6.0,
+  neo4j 6.3.1, pybind11 3.1.0, pydantic 2.13.5 (pydantic-core 2.46.5),
+  pytz 2026.4, sqlalchemy 2.0.54, typing-inspection 0.4.4. FastAPI is held at
+  0.136.3 because `apache-airflow-core` 3.3.2 requires `fastapi<0.137.0`.
+- **Security pin**: `fsspec>=2026.6.0` added to `[tool.uv] override-dependencies`
+  for CVE-2026-104851.
+- **Single version source**: `fraudshield.__version__` is read from the installed
+  distribution metadata (`pyproject.toml` declares 3.1.0) and passed to
+  `FastAPI(version=...)`.
+- **Container**: the Dockerfile is a genuine two-stage build, runs as the
+  unprivileged `fraudshield` user, declares a `HEALTHCHECK` against `/health`,
+  exposes 8000 only, and starts `uvicorn` directly.
+- **Compose stack**: healthchecks on every infrastructure service,
+  `condition: service_healthy` startup ordering, `restart: unless-stopped`, and a
+  tracked `infra/.env.example` template.
+- **Tests**: 27 new C++ extension equivalence tests in
+  `tests/unit_tests/test_cpp_extensions.py`. The suite reports 123 passed,
+  1 skipped.
+- **CI**: runs on `ubuntu-24.04` with `astral-sh/setup-uv@v10` and gates on
+  `scripts/verify_v3_components.py` (43 checks) in addition to ruff, mypy, pytest,
+  `python -m build`, and pip-audit.
+
+### Removed APIs
+
+| Removed in 3.1.0 | Use instead |
+|---|---|
+| `fraudshield.runtime.resources.verify_sqlalchemy_engine` | No replacement. Issue `SELECT 1` against the engine from `create_sqlalchemy_engine()` yourself. |
+| `fraudshield.runtime.resources.create_kafka_producer` | `fraudshield.streaming.broker.create_broker_producer` |
+| `fraudshield.runtime.resources.create_kafka_consumer` | `fraudshield.streaming.broker.create_broker_consumer` |
+| `fraudshield.monitoring.setup_metrics` | `fraudshield.monitoring.get_metrics().start_server()` |
+| `FraudGraphBuilder.detect_fraud_rings` | `FraudRingDetector.detect_rings()`, reachable via the `FraudGraphBuilder.ring_detector` attribute (`None` when Neo4j is unavailable) |
+| `FraudGraphBuilder.ring_risk` | `FraudRingDetector.assess_account()`, reachable via the same `ring_detector` attribute |
+
+The `streaming.broker` factories are the only supported path for Kafka and
+Redpanda clients; the removed `resources` helpers duplicated them while omitting
+SASL credentials and `broker_type`.
+
+### C++ Extension Fixes
+
+- `calculate_exponential_moving_average` crashed the interpreter (SIGSEGV) on an
+  empty input array: the C++ implementation wrote `ema[0]` without a bounds check,
+  and the Python fallback raised `IndexError` for the same input. Both now return
+  an empty array. A segfault is not catchable, so the wrapper's fallback could not
+  mask it.
+- The C++ RSI divided its initial average gain and loss by `window_size` instead of
+  `window_size - 1`, so the extension disagreed with the Python reference on every
+  value it produced. The divisor now matches the Python reference.
+- `remove_outliers` diverged on non-finite input: the C++ path returned the data
+  unchanged because NaN poisoned the mean, while the Python fallback returned an
+  empty array. Both implementations now drop non-finite values and skip the z-score
+  test when fewer than two finite values remain.
+- Explicit argument validation on both paths: `calculate_moving_average` and
+  `calculate_relative_strength_index` raise `ValueError` for non-positive or
+  out-of-range windows, and `calculate_exponential_moving_average` validates
+  `alpha` against `[0, 1]`. Previously only the C++ implementation rejected an
+  out-of-range `alpha`.
+
+`make test-cpp` runs `tests/unit_tests/test_cpp_extensions.py`, which asserts the
+compiled pybind11 extensions and the pure-Python fallbacks produce identical
+results. The GoogleTest sources under `tests/cpp/` are not wired into any CMake
+target, so nothing compiles or runs them.
+
+### Migration Steps
+
+```bash
+# 1. Pull latest
+git checkout version-3.1.0
+
+# 2. Reinstall from the lockfile and rebuild the C++ extensions
+uv sync --all-extras --locked
+make build-cpp
+
+# 3. Verify quality
+uv run pytest tests/ -q          # 123 passed, 1 skipped
+uv run ruff check src tests scripts
+uv run mypy src/
+make verify                      # 43-check component harness
+make audit                       # pip-audit on the locked all-extras export
+
+# 4. Run the pipeline (unchanged)
+uv run fraudshield_ingest
+uv run fraudshield_preprocess
+uv run fraudshield_train --model both
+uv run fraudshield_evaluate --model_path data/models/xgboost.pkl
+```
+
+For the Docker stack, copy both templates before starting it: `.env.example` to
+`.env` for the application settings, and `infra/.env.example` to `infra/.env` for
+the compose stack. Compose reads `.env` from the compose file's own directory.
+
+### Rollback
+
+```bash
+git checkout version-3.0.0
+uv sync
 uv run fraudshield_ingest
 uv run fraudshield_preprocess
 uv run fraudshield_train --model both
