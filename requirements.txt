@@ -66,7 +66,7 @@ networkx==3.4.2 ; python_full_version < '3.11'
     # via fraudshield
 networkx==3.6.1 ; python_full_version >= '3.11'
     # via fraudshield
-numba==0.53.1 ; python_full_version >= '3.11' and platform_machine == 'x86_64' and sys_platform == 'darwin'
+numba==0.68.0 ; python_full_version >= '3.11' and platform_machine == 'x86_64' and sys_platform == 'darwin'
     # via shap
 numba==0.65.1 ; python_full_version < '3.11' or platform_machine != 'x86_64' or sys_platform != 'darwin'
     # via shap
