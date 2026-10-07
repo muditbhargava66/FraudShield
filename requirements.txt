@@ -112,7 +112,7 @@ pandas==3.0.3 ; python_full_version >= '3.11'
     #   shap
 pillow==12.3.0
     # via matplotlib
-prometheus-client==0.25.0
+prometheus-client==0.26.0
     # via fraudshield
 psycopg2-binary==2.9.13
     # via fraudshield
