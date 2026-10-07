@@ -54,6 +54,7 @@ class TransactionConsumer:
                 **{
                     "bootstrap.servers": self.bootstrap_servers,
                     "group.id": self.group_id,
+                    "client.id": self.settings.kafka.consumer_client_id,
                 },
             )
             self.consumer.subscribe([self.topic])
