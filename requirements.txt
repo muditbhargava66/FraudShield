@@ -32,7 +32,7 @@ exceptiongroup==1.3.1 ; python_full_version < '3.11'
     # via anyio
 fastapi==0.136.3
     # via fraudshield
-fonttools==4.63.0
+fonttools==4.65.0
     # via matplotlib
 greenlet==3.5.1 ; platform_machine == 'AMD64' or platform_machine == 'WIN32' or platform_machine == 'aarch64' or platform_machine == 'amd64' or platform_machine == 'ppc64le' or platform_machine == 'win32' or platform_machine == 'x86_64'
     # via sqlalchemy
