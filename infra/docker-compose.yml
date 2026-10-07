@@ -1,16 +1,25 @@
 services:
   zookeeper:
     image: confluentinc/cp-zookeeper:7.5.0
+    restart: unless-stopped
     environment:
       ZOOKEEPER_CLIENT_PORT: 2181
       ZOOKEEPER_TICK_TIME: 2000
     ports:
       - "127.0.0.1:2181:2181"
+    healthcheck:
+      test: ["CMD-SHELL", "timeout 3 bash -c '</dev/tcp/127.0.0.1/2181' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
 
   kafka:
     image: confluentinc/cp-kafka:7.5.0
+    restart: unless-stopped
     depends_on:
-      - zookeeper
+      zookeeper:
+        condition: service_healthy
     ports:
       - "127.0.0.1:9092:9092"
     environment:
@@ -20,62 +29,103 @@ services:
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-broker-api-versions --bootstrap-server localhost:29092 >/dev/null 2>&1 || exit 1"]
+      interval: 15s
+      timeout: 30s
+      retries: 12
+      start_period: 90s
 
   neo4j:
     image: neo4j:5.12.0
+    restart: unless-stopped
     ports:
       - "127.0.0.1:7474:7474" # HTTP
       - "127.0.0.1:7687:7687" # Bolt
     environment:
-      NEO4J_AUTH: neo4j/${FRAUDSHIELD_NEO4J_PASSWORD:?Set FRAUDSHIELD_NEO4J_PASSWORD in .env}
+      NEO4J_AUTH: neo4j/${FRAUDSHIELD_NEO4J_PASSWORD:?Set FRAUDSHIELD_NEO4J_PASSWORD in infra/.env}
     volumes:
       - neo4j_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:7474 >/dev/null 2>&1 || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 45s
 
   postgres:
     image: postgres:15-alpine
+    restart: unless-stopped
     environment:
       POSTGRES_USER: fraudshield
-      POSTGRES_PASSWORD: ${FRAUDSHIELD_POSTGRES_PASSWORD:?Set FRAUDSHIELD_POSTGRES_PASSWORD in .env}
+      POSTGRES_PASSWORD: ${FRAUDSHIELD_POSTGRES_PASSWORD:?Set FRAUDSHIELD_POSTGRES_PASSWORD in infra/.env}
       POSTGRES_DB: fraudshield_db
     ports:
       - "127.0.0.1:5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "fraudshield", "-d", "fraudshield_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
 
   fraudshield:
     build:
       context: ..
       dockerfile: Dockerfile
+    restart: unless-stopped
     ports:
       - "127.0.0.1:8000:8000" # FastAPI inference and /metrics
     depends_on:
-      - kafka
-      - neo4j
-      - postgres
+      kafka:
+        condition: service_healthy
+      neo4j:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
     environment:
       FRAUDSHIELD_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
       FRAUDSHIELD_NEO4J_URI: bolt://neo4j:7687
-      FRAUDSHIELD_NEO4J_PASSWORD: ${FRAUDSHIELD_NEO4J_PASSWORD:?Set FRAUDSHIELD_NEO4J_PASSWORD in .env}
-      FRAUDSHIELD_DATABASE_URL: ${FRAUDSHIELD_DATABASE_URL:?Set FRAUDSHIELD_DATABASE_URL in .env}
+      FRAUDSHIELD_NEO4J_PASSWORD: ${FRAUDSHIELD_NEO4J_PASSWORD:?Set FRAUDSHIELD_NEO4J_PASSWORD in infra/.env}
+      FRAUDSHIELD_DATABASE_URL: ${FRAUDSHIELD_DATABASE_URL:?Set FRAUDSHIELD_DATABASE_URL in infra/.env}
       FRAUDSHIELD_MONITORING_ENABLED: "true"
+    # Container HEALTHCHECK is defined in the Dockerfile.
 
   prometheus:
     image: prom/prometheus:v2.47.0
+    restart: unless-stopped
     ports:
       - "127.0.0.1:9091:9090"
     volumes:
       - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
     depends_on:
-      - fraudshield
+      fraudshield:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:9090/-/healthy >/dev/null 2>&1 || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 20s
 
   grafana:
     image: grafana/grafana:10.1.0
+    restart: unless-stopped
     ports:
       - "127.0.0.1:3000:3000"
     environment:
-      GF_SECURITY_ADMIN_PASSWORD: ${FRAUDSHIELD_GRAFANA_ADMIN_PASSWORD:?Set FRAUDSHIELD_GRAFANA_ADMIN_PASSWORD in .env}
+      GF_SECURITY_ADMIN_PASSWORD: ${FRAUDSHIELD_GRAFANA_ADMIN_PASSWORD:?Set FRAUDSHIELD_GRAFANA_ADMIN_PASSWORD in infra/.env}
     depends_on:
-      - prometheus
+      prometheus:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/api/health >/dev/null 2>&1 || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
 
 volumes:
   neo4j_data:
