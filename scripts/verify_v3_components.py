@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-FraudShield v3.0.0 Component Verification Script
+FraudShield v3 Component Verification Script
 
-Validates that all v3.0.0 components (and their integration with v2.x
-components) function correctly. Run this to confirm the full stack
+Validates that all v3 components (and their integration with the earlier
+batch pipeline) function correctly. Run this to confirm the full stack
 is wired up properly before deploying.
 
 Usage:
@@ -583,12 +583,19 @@ def verify_docker():
         from pathlib import Path
         content = Path("Dockerfile").read_text()
         assert "python:3.10" in content
-        assert "EXPOSE 8000 9090" in content
+        assert "EXPOSE 8000" in content
         assert "uvicorn" in content
+        assert "AS builder" in content and "AS runtime" in content, "expected a multi-stage build"
+        assert "--locked" in content, "image must install from the audited lockfile"
+        assert "USER fraudshield" in content, "runtime image must not run as root"
+        assert "HEALTHCHECK" in content, "runtime image must declare a healthcheck"
 
     def _docker_compose_valid():
         import os
         import subprocess
+        from pathlib import Path
+
+        assert Path("infra/.env.example").exists(), "infra/.env.example is missing; a fresh clone cannot configure the stack"
 
         environment = os.environ.copy()
         environment.update(
@@ -618,8 +625,11 @@ def verify_docker():
     def _compose_services():
         from pathlib import Path
         content = Path("infra/docker-compose.yml").read_text()
-        for service in ["fraudshield", "prometheus", "grafana", "kafka", "neo4j"]:
+        for service in ["fraudshield", "prometheus", "grafana", "kafka", "zookeeper", "neo4j", "postgres"]:
             assert service in content, f"Service '{service}' not in docker-compose.yml"
+        assert content.count("healthcheck:") >= 6, "infrastructure services must declare healthchecks"
+        assert "condition: service_healthy" in content, "depends_on must wait for service health"
+        assert "restart:" in content, "services must declare a restart policy"
 
     checks = [
         ("Dockerfile exists", _dockerfile_exists),
@@ -667,7 +677,7 @@ def verify_test_suite():
 
 def main() -> int:
     print("=" * 60)
-    print("  FraudShield v3.0.0 Component Verification")
+    print("  FraudShield v3 Component Verification")
     print("=" * 60)
 
     start = time.time()

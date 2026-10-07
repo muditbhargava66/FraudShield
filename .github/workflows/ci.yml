@@ -4,16 +4,21 @@ name: CI
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, "version-*" ]
   pull_request:
     branches: [ main ]
 
 permissions:
   contents: read
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
     services:
       postgres:
         image: postgres:15-alpine
@@ -37,9 +42,13 @@ jobs:
       with:
         python-version: "3.10"
 
+    - name: Set up uv
+      uses: astral-sh/setup-uv@v10
+      with:
+        enable-cache: true
+
     - name: Install dependencies
       run: |
-        python -m pip install --upgrade pip uv
         uv sync --all-extras --locked
 
     - name: Run data ingestion
@@ -64,6 +73,12 @@ jobs:
       run: |
         uv run --no-sync pytest tests/ -v
 
+    - name: Run component verification harness
+      env:
+        FRAUDSHIELD_DATABASE_URL: postgresql+psycopg2://fraudshield:fraudshield_password@localhost:5432/fraudshield_db
+      run: |
+        uv run --no-sync python scripts/verify_v3_components.py
+
     - name: Package project
       run: |
         uv run --no-sync python -m build
@@ -75,7 +90,8 @@ jobs:
         path: dist
 
   lint:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
 
     steps:
     - uses: actions/checkout@v7
@@ -85,9 +101,13 @@ jobs:
       with:
         python-version: "3.10"
 
+    - name: Set up uv
+      uses: astral-sh/setup-uv@v10
+      with:
+        enable-cache: true
+
     - name: Install dependencies
       run: |
-        python -m pip install --upgrade pip uv
         uv sync --all-extras --locked
 
     - name: Lint with Ruff
@@ -99,7 +119,8 @@ jobs:
         uv run --no-sync mypy src/
 
   dependency-audit:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
     steps:
     - uses: actions/checkout@v7
 
@@ -108,8 +129,12 @@ jobs:
       with:
         python-version: "3.10"
 
+    - name: Set up uv
+      uses: astral-sh/setup-uv@v10
+      with:
+        enable-cache: true
+
     - name: Audit exported locked dependencies
       run: |
-        python -m pip install --upgrade pip uv
         uv export --all-extras --no-dev --no-emit-project --no-hashes --locked --output-file /tmp/fraudshield-audit-requirements.txt
         uvx pip-audit --no-deps --disable-pip -r /tmp/fraudshield-audit-requirements.txt --strict
