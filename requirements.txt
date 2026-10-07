@@ -46,7 +46,7 @@ joblib==1.6.0
     #   scikit-learn
 kiwisolver==1.5.1
     # via matplotlib
-llvmlite==0.36.0 ; python_full_version >= '3.11' and platform_machine == 'x86_64' and sys_platform == 'darwin'
+llvmlite==0.50.0 ; python_full_version >= '3.11' and platform_machine == 'x86_64' and sys_platform == 'darwin'
     # via
     #   numba
     #   shap
