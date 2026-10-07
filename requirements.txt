@@ -130,7 +130,7 @@ python-dateutil==2.9.0.post0
     # via
     #   matplotlib
     #   pandas
-pytz==2026.4
+pytz==2026.5
     # via
     #   neo4j
     #   pandas
