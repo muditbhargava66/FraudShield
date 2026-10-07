@@ -241,7 +241,7 @@ uv run fraudshield_train --model both
 - **Tests**: 27 new C++ extension equivalence tests in
   `tests/unit_tests/test_cpp_extensions.py`. The suite reports 123 passed,
   1 skipped.
-- **CI**: runs on `ubuntu-24.04` with `astral-sh/setup-uv@v10` and gates on
+- **CI**: runs on `ubuntu-24.04` with `astral-sh/setup-uv@v10.0.0` and gates on
   `scripts/verify_v3_components.py` (43 checks) in addition to ruff, mypy, pytest,
   `python -m build`, and pip-audit.
 

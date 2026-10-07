@@ -68,7 +68,7 @@ so no placeholder password can reach a running stack.
   `pygments>=2.20.0`, `pyjwt>=2.15.0`, `requests>=2.33.0`,
   `setuptools>=83.0.0`, `sqlparse>=0.6.0`, `starlette>=1.3.1`,
   `urllib3>=2.8.0`, `virtualenv>=21.7.13`.
-- CI runs on `ubuntu-24.04` with Python 3.10 and `astral-sh/setup-uv@v10`. The
+- CI runs on `ubuntu-24.04` with Python 3.10 and `astral-sh/setup-uv@v10.0.0`. The
   gates are: `ruff check src tests scripts`, `mypy src/`, `pytest tests/`,
   `python scripts/verify_v3_components.py` (43 checks), `python -m build`, and the
   pip-audit gate below. Triggers are pushes to `main` and `version-*` plus pull
