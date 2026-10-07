@@ -12,6 +12,15 @@ updates:
       - "security"
     commit-message:
       prefix: "chore(deps)"
+    ignore:
+      # apache-airflow-core 3.3.2 (latest) requires fastapi>=0.129.0,<0.137.0, so any
+      # 0.137+ bump is unresolvable while the `airflow` extra is in the lock.
+      - dependency-name: "fastapi"
+        versions: [">=0.137"]
+      # neo4j-python-driver 6.4.0 has an open busy-loop regression (issue #1360);
+      # 6.3.1 raises ConnectionAcquisitionTimeoutError correctly.
+      - dependency-name: "neo4j"
+        versions: [">=6.4"]
 
   # Maintain GitHub Actions workflow dependencies
   - package-ecosystem: "github-actions"
