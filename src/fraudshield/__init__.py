@@ -2,6 +2,9 @@
 FraudShield package metadata.
 """
 
+from importlib.metadata import PackageNotFoundError
+from importlib.metadata import version as _distribution_version
+
 from fraudshield.config.settings import get_settings
 
 __all__ = [
@@ -16,6 +19,10 @@ __all__ = [
     "config",
     "runtime",
     "get_settings",
+    "__version__",
 ]
 
-__version__ = "3.0.0"
+try:
+    __version__ = _distribution_version("fraudshield")
+except PackageNotFoundError as exc:
+    raise RuntimeError("FraudShield distribution metadata is missing; install the project with `uv sync` first.") from exc

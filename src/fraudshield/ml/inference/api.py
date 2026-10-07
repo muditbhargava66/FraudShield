@@ -12,6 +12,7 @@ from typing import Any, Dict, Optional
 from fastapi import FastAPI, HTTPException, Request
 from pydantic import BaseModel, ConfigDict
 
+from fraudshield import __version__
 from fraudshield.config.settings import RuntimeSettings, get_settings
 from fraudshield.core.risk_engine.engine import HybridRiskEngine, count_rule_breaches, extract_account_id
 from fraudshield.graph.graph_builder.builder import FraudGraphBuilder
@@ -41,8 +42,7 @@ class TransactionRequest(BaseModel):
     status: str = "posted"
 
     def to_event(self) -> Dict[str, Any]:
-        dump = self.model_dump() if hasattr(self, "model_dump") else self.dict()
-        return dump
+        return self.model_dump()
 
 
 class FraudScoreResponse(BaseModel):
@@ -85,7 +85,7 @@ def create_app(settings: Optional[RuntimeSettings] = None) -> FastAPI:
     app = FastAPI(
         title="FraudShield Inference API",
         description="High-frequency real-time fraud prediction and scoring API.",
-        version="3.0.0",
+        version=__version__,
         lifespan=lifespan,
     )
     if resolved_settings.monitoring.enabled:

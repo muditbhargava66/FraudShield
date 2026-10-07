@@ -9,7 +9,26 @@ from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
 
-PROJECT_ROOT = Path(__file__).resolve().parents[3]
+_SRC_LAYOUT_ROOT = Path(__file__).resolve().parents[3]
+
+
+def _resolve_project_root() -> Path:
+    """Locate the project root for both source and installed layouts.
+
+    ``parents[3]`` is only the repository root for a ``src/`` layout (editable installs);
+    a wheel install lands in ``site-packages`` and must fall back to the working directory
+    unless ``FRAUDSHIELD_PROJECT_ROOT`` says otherwise.
+    """
+    override = os.getenv("FRAUDSHIELD_PROJECT_ROOT")
+    if override:
+        return Path(override).expanduser().resolve()
+    if (_SRC_LAYOUT_ROOT / "src" / "fraudshield").is_dir():
+        return _SRC_LAYOUT_ROOT
+    return Path.cwd().resolve()
+
+
+PROJECT_ROOT = _resolve_project_root()
+PACKAGE_ROOT = Path(__file__).resolve().parents[1]
 SRC_ROOT = PROJECT_ROOT / "src"
 DATA_ROOT = PROJECT_ROOT / "data"
 DEFAULT_SQLITE_PATH = DATA_ROOT / "processed" / "fraud_data.db"
@@ -130,7 +149,7 @@ class RuntimeSettings:
             database=DatabaseSettings(sqlalchemy_url=db_url),
             airflow=AirflowSettings(
                 home=airflow_home,
-                dags_folder=Path(os.getenv("FRAUDSHIELD_AIRFLOW_DAGS_FOLDER", SRC_ROOT / "fraudshield" / "data_pipeline" / "airflow_dags")),
+                dags_folder=Path(os.getenv("FRAUDSHIELD_AIRFLOW_DAGS_FOLDER", PACKAGE_ROOT / "data_pipeline" / "airflow_dags")),
                 base_log_folder=Path(os.getenv("FRAUDSHIELD_AIRFLOW_BASE_LOG_FOLDER", PROJECT_ROOT / "logs")),
                 metadata_db_url=airflow_db_url,
                 executor=os.getenv("FRAUDSHIELD_AIRFLOW_EXECUTOR", default_executor),
