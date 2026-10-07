@@ -55,7 +55,10 @@ public:
     };
 
     static void remove_outliers(std::vector<double>& data, double threshold) {
-        if (data.empty()) {
+        // Non-finite values are dropped outright: they are missing data rather than
+        // outliers, and they would poison the mean/stddev driving the z-score test.
+        data.erase(std::remove_if(data.begin(), data.end(), [](double value) { return !std::isfinite(value); }), data.end());
+        if (data.size() < 2) {
             return;
         }
         double mean = calculate_mean(data);

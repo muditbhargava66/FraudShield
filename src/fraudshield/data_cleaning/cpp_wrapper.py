@@ -65,17 +65,18 @@ def remove_outliers(data: np.ndarray, threshold: float = 3.0) -> np.ndarray:
             logger.warning(f"C++ function failed: {e}. Using Python fallback.")
 
     # Python fallback
-    if len(data) == 0:
-        return data
+    finite = data[np.isfinite(data)]
+    if finite.size < 2:
+        return finite
 
-    mean = np.mean(data)
-    std = np.std(data, ddof=1)
+    mean = np.mean(finite)
+    std = np.std(finite, ddof=1)
 
     if std == 0:
-        return data
+        return finite
 
-    z_scores = np.abs((data - mean) / std)
-    return data[z_scores <= threshold]
+    z_scores = np.abs((finite - mean) / std)
+    return finite[z_scores <= threshold]
 
 
 def is_cpp_available() -> bool:

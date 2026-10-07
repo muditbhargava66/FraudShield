@@ -40,8 +40,13 @@ def calculate_moving_average(data: np.ndarray, window_size: int) -> np.ndarray:
         window_size: Size of the moving window
 
     Returns:
-        Array of moving averages
+        Array of moving averages; empty when the series is shorter than the window.
     """
+    if window_size <= 0:
+        raise ValueError("window_size must be a positive integer")
+    if data.size < window_size:
+        return np.empty(0, dtype=np.float64)
+
     if CPP_AVAILABLE:
         try:
             return _feature_engineering_cpp.calculate_moving_average(data.astype(np.float64), window_size)
@@ -65,6 +70,9 @@ def calculate_exponential_moving_average(data: np.ndarray, alpha: float) -> np.n
     Returns:
         Array of exponential moving averages
     """
+    if not 0.0 <= alpha <= 1.0:
+        raise ValueError("alpha must be within [0, 1]")
+
     if CPP_AVAILABLE:
         try:
             return _feature_engineering_cpp.calculate_exponential_moving_average(data.astype(np.float64), alpha)
@@ -72,7 +80,9 @@ def calculate_exponential_moving_average(data: np.ndarray, alpha: float) -> np.n
             logger.warning(f"C++ function failed: {e}. Using Python fallback.")
 
     # Python fallback
-    ema = np.zeros_like(data)
+    ema = np.zeros(data.size, dtype=np.float64)
+    if ema.size == 0:
+        return ema
     ema[0] = data[0]
     for i in range(1, len(data)):
         ema[i] = alpha * data[i] + (1 - alpha) * ema[i - 1]
@@ -90,6 +100,11 @@ def calculate_relative_strength_index(data: np.ndarray, window_size: int) -> np.
     Returns:
         Array of RSI values
     """
+    if window_size < 2:
+        raise ValueError("Window size must be at least 2 for RSI calculation")
+    if data.size < window_size:
+        raise ValueError("window_size exceeds the number of data points")
+
     if CPP_AVAILABLE:
         try:
             return _feature_engineering_cpp.calculate_relative_strength_index(data.astype(np.float64), window_size)
