@@ -580,9 +580,17 @@ def verify_docker():
         assert Path("Dockerfile").exists(), "Dockerfile not found"
 
     def _dockerfile_content():
+        import re
+        import tomllib
         from pathlib import Path
+
         content = Path("Dockerfile").read_text()
-        assert "python:3.10" in content
+        # Derive the expected base image from requires-python so the two cannot drift.
+        requires_python = tomllib.loads(Path("pyproject.toml").read_text())["project"]["requires-python"]
+        match = re.search(r">=\s*(\d+\.\d+)", requires_python)
+        assert match is not None, f"cannot parse requires-python: {requires_python}"
+        floor = match.group(1)
+        assert f"python:{floor}" in content, f"Dockerfile base image must match requires-python (>= {floor})"
         assert "EXPOSE 8000" in content
         assert "uvicorn" in content
         assert "AS builder" in content and "AS runtime" in content, "expected a multi-stage build"

@@ -29,7 +29,7 @@ pytest -q
 
 ## Running Checks
 
-- Unit + integration tests: `pytest tests/ -q` (124 passed, 1 skipped; the skip is the live-PostgreSQL integration test)
+- Unit + integration tests: `pytest tests/ -q` (125 passed, 1 skipped; the skip is the live-PostgreSQL integration test)
 - C++ extension vs. Python fallback equivalence: `make test-cpp`
 - Lint (Python): `ruff check src tests scripts`, or `make lint`
 - Type check: `mypy src/`, or `make typecheck`
@@ -38,7 +38,7 @@ pytest -q
 - Dependency audit: `make audit`
 - Packaging sanity: `python -m build`
 
-The lint scope is `src tests scripts` in the Makefile, `tox.ini`, and CI alike. CI runs on `ubuntu-24.04` with Python 3.10 only; `tox` covers 3.10-3.13.
+The lint scope is `src tests scripts` in the Makefile, `tox.ini`, and CI alike. CI runs on `ubuntu-24.04` with Python 3.11 and 3.13; `tox` covers 3.11-3.13.
 
 ## Adding Features (Feature Engineering)
 

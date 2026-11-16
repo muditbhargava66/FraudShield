@@ -4,11 +4,14 @@
 
 | Version | Supported |
 |---------|-----------|
-| 3.1.x   | Yes       |
-| 3.0.x   | Yes       |
-| 2.3.x   | Yes       |
+| 4.0.x   | Yes       |
+| 3.1.x   | No        |
+| 3.0.x   | No        |
+| 2.3.x   | No        |
 | 2.2.x   | No        |
 | < 2.2   | No        |
+
+3.1.x is superseded. It runs on Python 3.10, and the patched releases of Pillow, filelock and dnspython all require 3.11, so its open advisories cannot be resolved within that support line. Upgrade to 4.0.0.
 
 ## Reporting a Vulnerability
 

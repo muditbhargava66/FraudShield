@@ -84,6 +84,33 @@ def test_shap_explainer_failure():
     assert "Error" in res
 
 
+def test_shap_explainer_three_dimensional_output():
+    """A binary RandomForest's TreeExplainer returns (n_samples, n_features, n_outputs).
+
+    Regression: the positive-class slice was missed, so every feature mapped to a
+    two-element array. float() then raised "truth value of an array is ambiguous"
+    and the explainer returned an Error dict instead of an explanation.
+    """
+    import numpy as np
+    import pandas as pd
+
+    from fraudshield.ml.explainability.shap_explainer import FraudExplainer
+
+    class _TreeExplainer:
+        def shap_values(self, _frame):
+            # class 0 (negative) in [..., 0], class 1 (positive) in [..., 1]
+            return np.array([[[0.1, 1.1], [0.2, 1.2], [0.3, 1.3]]], dtype=float)
+
+    explainer = FraudExplainer("dummy_model")
+    explainer.explainer = _TreeExplainer()
+
+    df = pd.DataFrame([{"a": 1, "b": 2, "c": 3}])
+    explanation = explainer.explain_transaction(df)
+
+    assert "Error" not in explanation
+    assert explanation == {"c": 1.3, "b": 1.2, "a": 1.1}
+
+
 def test_graph_builder_initialization():
     from fraudshield.graph.graph_builder.builder import FraudGraphBuilder
 

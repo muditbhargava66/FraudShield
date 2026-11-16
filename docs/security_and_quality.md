@@ -62,13 +62,17 @@ so no placeholder password can reach a running stack.
 - Known-vulnerable transitive dependencies are force-upgraded via
   `[tool.uv] override-dependencies` in `pyproject.toml`:
   `aiosmtplib>=5.1.2`, `anyio>=4.14.2`,
-  `apache-airflow-providers-smtp>=3.0.0`, `click>=8.3.3`,
-  `cryptography>=50.0.0`, `fsspec>=2026.6.0`, `idna>=3.15`,
-  `mako>=1.3.11`, `pillow>=12.3.0`, `pydantic-settings>=2.14.2`,
-  `pygments>=2.20.0`, `pyjwt>=2.15.0`, `requests>=2.33.0`,
-  `setuptools>=83.0.0`, `sqlparse>=0.6.0`, `starlette>=1.3.1`,
-  `urllib3>=2.8.0`, `virtualenv>=21.7.13`.
-- CI runs on `ubuntu-24.04` with Python 3.10 and `astral-sh/setup-uv@v10.0.0`. The
+  `apache-airflow-providers-smtp>=3.0.0`, `certifi>=2026.10.18`,
+  `click>=8.3.3`, `cryptography>=50.0.0`, `dnspython>=2.9.2`,
+  `filelock>=4.2.1`, `fsspec>=2026.6.0`, `idna>=3.20`,
+  `mako>=1.4.2`, `opentelemetry-api>=1.45.2`, `pillow>=13.0.0`,
+  `pydantic-settings>=2.14.2`, `pygments>=2.20.0`, `pyjwt>=2.15.0`,
+  `requests>=2.33.0`, `setuptools>=84.1.0`, `sqlparse>=0.6.0`,
+  `starlette>=1.3.1`, `urllib3>=2.8.0`, `virtualenv>=21.14.9`.
+- The supported platform matrix is declared in `[tool.uv] environments`:
+  Linux x86_64/aarch64, macOS arm64, and Windows x86_64. Intel macOS is excluded
+  because numba and llvmlite publish arm64-only macOS wheels.
+- CI runs on `ubuntu-24.04` with Python 3.11 and 3.13, and `astral-sh/setup-uv@v10.0.0`. The
   gates are: `ruff check src tests scripts`, `mypy src/`, `pytest tests/`,
   `python scripts/verify_v3_components.py` (43 checks), `python -m build`, and the
   pip-audit gate below. Triggers are pushes to `main` and `version-*` plus pull
