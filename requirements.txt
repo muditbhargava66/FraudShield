@@ -145,7 +145,7 @@ typing-inspection==0.4.4 ; (platform_machine == 'arm64' and sys_platform == 'dar
     # via
     #   fastapi
     #   pydantic
-tzdata==2026.2 ; sys_platform == 'win32'
+tzdata==2026.6 ; sys_platform == 'win32'
     # via pandas
 uvicorn==0.54.0 ; (platform_machine == 'arm64' and sys_platform == 'darwin') or sys_platform == 'linux' or sys_platform == 'win32'
     # via fraudshield
