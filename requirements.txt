@@ -127,7 +127,7 @@ sqlalchemy==2.0.54 ; (platform_machine == 'arm64' and sys_platform == 'darwin') 
     # via fraudshield
 starlette==1.7.0 ; (platform_machine == 'arm64' and sys_platform == 'darwin') or sys_platform == 'linux' or sys_platform == 'win32'
     # via fastapi
-threadpoolctl==3.7.0 ; (platform_machine == 'arm64' and sys_platform == 'darwin') or sys_platform == 'linux' or sys_platform == 'win32'
+threadpoolctl==3.8.0 ; (platform_machine == 'arm64' and sys_platform == 'darwin') or sys_platform == 'linux' or sys_platform == 'win32'
     # via scikit-learn
 tqdm==4.70.1 ; (platform_machine == 'arm64' and sys_platform == 'darwin') or sys_platform == 'linux' or sys_platform == 'win32'
     # via shap
