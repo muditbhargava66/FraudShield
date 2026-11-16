@@ -19,6 +19,13 @@ jobs:
   build:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
+    strategy:
+      # Both ends of the supported range. Local development runs 3.13 while CI used to
+      # run only 3.10; that gap hid a CPython 3.12 sum() behaviour change until CI
+      # caught it late in the 3.1.0 cycle.
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.13"]
     services:
       postgres:
         image: postgres:15-alpine
@@ -40,7 +47,7 @@ jobs:
     - name: Set up Python
       uses: actions/setup-python@v7
       with:
-        python-version: "3.10"
+        python-version: ${{ matrix.python-version }}
 
     - name: Set up uv
       uses: astral-sh/setup-uv@v10.0.0
@@ -86,7 +93,7 @@ jobs:
     - name: Upload package artifacts
       uses: actions/upload-artifact@v7
       with:
-        name: dist
+        name: dist-py${{ matrix.python-version }}
         path: dist
 
   lint:
@@ -99,7 +106,7 @@ jobs:
     - name: Set up Python
       uses: actions/setup-python@v7
       with:
-        python-version: "3.10"
+        python-version: "3.11"
 
     - name: Set up uv
       uses: astral-sh/setup-uv@v10.0.0
@@ -127,7 +134,7 @@ jobs:
     - name: Set up Python
       uses: actions/setup-python@v7
       with:
-        python-version: "3.10"
+        python-version: "3.11"
 
     - name: Set up uv
       uses: astral-sh/setup-uv@v10.0.0
