@@ -67,7 +67,17 @@ class FraudExplainer:
                 if isinstance(shap_values, list):
                     payload_vals = shap_values[1][0]
                 else:
-                    payload_vals = shap_values[0] if getattr(shap_values, "ndim", 1) > 1 else shap_values
+                    import numpy as np
+
+                    values = np.asarray(shap_values)
+                    if values.ndim == 3:
+                        # (n_samples, n_features, n_outputs): TreeExplainer returns this
+                        # shape for a binary RandomForest, so keep the positive class.
+                        payload_vals = values[0, :, -1]
+                    elif values.ndim == 2:
+                        payload_vals = values[0]
+                    else:
+                        payload_vals = values
 
             explanation = dict(zip(feature_vector.columns, payload_vals))
             sorted_explanation = {k: round(float(v), 4) for k, v in sorted(explanation.items(), key=lambda item: abs(item[1]), reverse=True)}
