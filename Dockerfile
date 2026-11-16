@@ -1,6 +1,6 @@
 # FraudShield — multi-stage build: compile the C++ extensions in a builder,
 # then ship only the resolved virtualenv in a slim runtime image.
-FROM python:3.10-slim AS builder
+FROM python:3.11-slim AS builder
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
@@ -25,7 +25,7 @@ COPY src/ src/
 RUN uv sync --no-dev --no-editable --locked
 
 
-FROM python:3.10-slim AS runtime
+FROM python:3.11-slim AS runtime
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
