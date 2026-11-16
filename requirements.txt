@@ -125,7 +125,7 @@ slicer==0.0.8 ; (platform_machine == 'arm64' and sys_platform == 'darwin') or sy
     # via shap
 sqlalchemy==2.0.54 ; (platform_machine == 'arm64' and sys_platform == 'darwin') or sys_platform == 'linux' or sys_platform == 'win32'
     # via fraudshield
-starlette==1.7.0 ; (platform_machine == 'arm64' and sys_platform == 'darwin') or sys_platform == 'linux' or sys_platform == 'win32'
+starlette==1.10.0 ; (platform_machine == 'arm64' and sys_platform == 'darwin') or sys_platform == 'linux' or sys_platform == 'win32'
     # via fastapi
 threadpoolctl==3.7.0 ; (platform_machine == 'arm64' and sys_platform == 'darwin') or sys_platform == 'linux' or sys_platform == 'win32'
     # via scikit-learn
