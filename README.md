@@ -3,13 +3,13 @@
 # FraudShield
 
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-3.1.0-blue.svg)](CHANGELOG.md)
-[![Python Version](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
+[![Version](https://img.shields.io/badge/version-4.0.0-blue.svg)](CHANGELOG.md)
+[![Python Version](https://img.shields.io/badge/Python-3.11%2B-blue.svg)](https://www.python.org/downloads/)
 [![Ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)](https://github.com/astral-sh/ruff)
 [![Checked with mypy](https://www.mypy-lang.org/static/mypy_badge.svg)](https://mypy-lang.org/)
 [![CI](https://github.com/muditbhargava66/FraudShield/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/muditbhargava66/FraudShield/actions/workflows/ci.yml)
 [![CodeQL](https://github.com/muditbhargava66/FraudShield/actions/workflows/github-code-scanning/codeql/badge.svg?branch=main)](https://github.com/muditbhargava66/FraudShield/actions/workflows/github-code-scanning/codeql)
-[![Tested with Tox: 3.10 | 3.11 | 3.12 | 3.13](https://img.shields.io/badge/Tested%20with%20Tox-3.10%20%7C%203.11%20%7C%203.12%20%7C%203.13-blue)](#testing)
+[![Tested with Tox: 3.11 | 3.12 | 3.13](https://img.shields.io/badge/Tested%20with%20Tox-3.11%20%7C%203.12%20%7C%203.13-blue)](#testing)
 
 </div>
 
@@ -228,12 +228,12 @@ If you switch to `LocalExecutor`, switch the Airflow metadata database off SQLit
 ## Testing
 
 - **pytest** for unit, integration, and smoke tests (markers: `slow`, `integration`, `smoke`)
-- **tox** for multi-version testing (3.10, 3.11, 3.12, 3.13)
+- **tox** for multi-version testing (3.11, 3.12, 3.13)
 - **ruff** for linting and formatting
 - **mypy** for type checking
 - **C++ extensions** are covered by `tests/unit_tests/test_cpp_extensions.py` (27 tests), which asserts the compiled pybind11 path and the pure-Python fallback return identical results. The GoogleTest sources under `tests/cpp/` are not wired into any CMake target, so nothing compiles or runs them.
 
-The suite collects 125 tests. Without a database it reports 124 passed and 1 skipped; the skip is `tests/integration_tests/test_postgresql.py`, which runs only when `FRAUDSHIELD_DATABASE_URL` points at a reachable database. CI starts a `postgres:15-alpine` service container and sets that variable, so the same suite reports 125 passed and 0 skipped there. CI runs Python 3.10 only, while `tox` covers 3.10-3.13.
+The suite collects 126 tests. Without a database it reports 125 passed and 1 skipped; the skip is `tests/integration_tests/test_postgresql.py`, which runs only when `FRAUDSHIELD_DATABASE_URL` points at a reachable database. CI starts a `postgres:15-alpine` service container and sets that variable, so the same suite reports 126 passed and 0 skipped there. CI runs the 3.11 floor and the 3.13 ceiling, while `tox` covers 3.11-3.13.
 
 Run all tests:
 

@@ -4,7 +4,7 @@ Step-by-step instructions for setting up FraudShield locally.
 
 ## Prerequisites
 
-- Python 3.10+
+- Python 3.11+
 - [uv](https://docs.astral.sh/uv/) — recommended dependency manager (the repo ships `pyproject.toml` + `uv.lock`)
 - C++ compiler (GCC 7+ or Clang 5+) — only needed for C++ extensions
 - Docker and Docker Compose — only for Kafka/Neo4j real-time streaming

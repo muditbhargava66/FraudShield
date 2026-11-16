@@ -1,4 +1,4 @@
-# Migration Guide: v2.2.0 → v2.3.0 → v3.0.0 → v3.1.0
+# Migration Guide: v2.2.0 → v2.3.0 → v3.0.0 → v3.1.0 → v4.0.0
 
 ## Overview of Changes
 
@@ -239,7 +239,7 @@ uv run fraudshield_train --model both
   `condition: service_healthy` startup ordering, `restart: unless-stopped`, and a
   tracked `infra/.env.example` template.
 - **Tests**: 27 new C++ extension equivalence tests in
-  `tests/unit_tests/test_cpp_extensions.py`. The suite reports 124 passed,
+  `tests/unit_tests/test_cpp_extensions.py`. The suite reports 125 passed,
   1 skipped.
 - **CI**: runs on `ubuntu-24.04` with `astral-sh/setup-uv@v10.0.0` and gates on
   `scripts/verify_v3_components.py` (43 checks) in addition to ruff, mypy, pytest,
@@ -296,7 +296,7 @@ uv sync --all-extras --locked
 make build-cpp
 
 # 3. Verify quality
-uv run pytest tests/ -q          # 124 passed, 1 skipped
+uv run pytest tests/ -q          # 125 passed, 1 skipped
 uv run ruff check src tests scripts
 uv run mypy src/
 make verify                      # 43-check component harness
@@ -324,3 +324,76 @@ uv run fraudshield_train --model both
 ```
 
 ---
+
+## v3.1.0 → v4.0.0
+
+v4.0.0 is a security release with two breaking platform changes. There are no API
+or schema changes; the pipeline commands are unchanged.
+
+### Breaking Changes
+
+1. **Python 3.10 is no longer supported.** `requires-python` is `>=3.11`.
+   Pillow 13.0.0, filelock 4.2.1 and dnspython 2.9.2 are the first releases that
+   fix the open advisories, and all three require 3.11. Pillow 12.3.0 is the last
+   3.10-compatible release and it is vulnerable with no patched backport, so
+   staying on 3.10 leaves the critical advisories permanently unfixable.
+2. **Intel macOS is no longer a supported platform.** numba and llvmlite have
+   published arm64-only macOS wheels since 0.54 / 0.40. On x86_64 Macs the
+   resolver was falling back to `numba 0.53.1` / `llvmlite 0.36.0`, which cannot
+   install on Python 3.10 or newer. Supported platforms are now Linux
+   x86_64/aarch64, macOS arm64, and Windows x86_64, declared in
+   `[tool.uv] environments`.
+
+### Migration Steps
+
+```bash
+# 1. Confirm your interpreter
+python3 --version          # must be 3.11 or newer
+
+# 2. Pull latest and reinstall against the new lockfile
+git pull
+uv sync --all-extras --locked
+
+# 3. Regenerate data and models (the preprocessing pipeline is unchanged)
+uv run fraudshield_ingest
+uv run fraudshield_preprocess
+uv run fraudshield_train --model both
+uv run fraudshield_evaluate --model_path data/models/xgboost.pkl
+
+# 4. Verify
+uv run ruff check src tests scripts
+uv run mypy src/
+uv run pytest tests/ -q
+uv run python scripts/verify_v3_components.py
+make audit
+```
+
+The Docker images now use `python:3.11-slim`; rebuild rather than reusing a
+cached 3.10 layer.
+
+```bash
+docker compose -f infra/docker-compose.yml build --no-cache
+```
+
+### What Changed Underneath
+
+- 116 Dependabot alerts cleared. `pip-audit --strict --no-deps` is clean on both
+  the runtime and the all-extras locked exports.
+- Pillow 12 → 13 (major). matplotlib only requires `pillow>=8`, so plotting is
+  unaffected; re-run `fraudshield_evaluate` to confirm your own plotting works.
+- numba 0.65 → 0.68 and llvmlite 0.47 → 0.50 (two majors). SHAP is the only
+  consumer; confirm explanations still render on your data.
+- OpenTelemetry 1.42 → 1.45 (airflow extra only). The family moves as a set
+  because `opentelemetry-sdk` pins `opentelemetry-api` exactly.
+- The lockfile drops from 197 to 186 packages as per-interpreter duplicates
+  collapse: numpy, pandas, scipy and scikit-learn each resolve to one version.
+
+### Rollback
+
+```bash
+git checkout version-3.1.0
+uv sync
+```
+
+Rolling back restores the 116 open advisories, including 11 criticals. Treat it
+as a stopgap only.

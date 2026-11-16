@@ -5,6 +5,32 @@ All notable changes to FraudShield are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.0.0] - 2026-11-16
+
+### Breaking
+- **Python 3.10 is no longer supported.** `requires-python` is now `>=3.11`. Pillow 13.0.0, filelock 4.2.1 and dnspython 2.9.2 — the only releases that fix the open advisories — all require 3.11, and Pillow 12.3.0 (the last 3.10-compatible release) has no patched 3.10 backport. Keeping 3.10 would have left 97 of the 116 open alerts, including all 11 criticals, permanently unfixable. CI now tests 3.11 and 3.13; `tox` covers 3.11-3.13.
+- **Intel macOS is no longer a supported platform.** numba and llvmlite have published arm64-only macOS wheels since 0.54 / 0.40, so the resolver fell back to `numba 0.53.1` / `llvmlite 0.36.0` for x86_64 Macs — a pair that cannot install on Python 3.10 or newer at all. The supported matrix is Linux x86_64/aarch64, macOS arm64, and Windows x86_64, declared through `[tool.uv] environments`.
+
+### Security
+- Clears all 116 open Dependabot alerts (11 critical, 56 high, 42 medium, 7 low) across 8 packages. `pip-audit --strict --no-deps` reports no known vulnerabilities on both the runtime and all-extras locked exports.
+- `pillow` 12.3.0 to 13.0.0 (86 alerts, 11 critical) — Pillow is a runtime dependency through matplotlib, so these were reachable in the default install. This is a major version bump; matplotlib only requires `pillow>=8`.
+- `certifi` 2026.5.20 to 2026.10.23 (1 critical) — bundled emSign roots with compromised intermediate CA keys, reachable through `requests` and `httpx`.
+- `virtualenv` 21.14.2 to 21.15.6 (13 high) and `filelock` 3.29.3 to 4.2.10 (9 high) — both reachable only through `tox` in the `dev` extra.
+- `dnspython` 2.8.0 to 2.9.2 (2 high) — reachable through `fastapi[standard]` and `email-validator`.
+- `opentelemetry-api` and the rest of the OpenTelemetry family 1.42.1 to 1.45.2 (2 medium) — reachable only through the `airflow` extra. The family has to move as a set because `opentelemetry-sdk` pins `opentelemetry-api` exactly; bumping api alone produces `ResolutionImpossible` at install time even though `uv lock` accepts it.
+- `Mako` 1.3.12 to 1.4.3 (1 medium) — reachable only through `airflow` and `alembic`.
+- `setuptools` is gone from the dependency graph entirely (2 low alerts). It was present only because `numba 0.53.1` depended on it, and removing the Intel-macOS branch removed that dependency.
+
+### Changed
+- Dependency refresh: certifi 2026.5.20 to 2026.10.23, dnspython 2.8.0 to 2.9.2, filelock 3.29.3 to 4.2.10, fonttools 4.63.0 to 4.68.0, greenlet 3.5.1 to 3.5.6, idna 3.18 to 3.20, llvmlite 0.47.0 to 0.50.0, Mako 1.3.12 to 1.4.3, numba 0.65.1 to 0.68.1, nvidia-nccl-cu12 2.30.7 to 2.32.6, opentelemetry 1.42.1 to 1.45.2, packaging 26.2 to 26.3, pillow 12.3.0 to 13.0.0, prometheus-client 0.25.0 to 0.26.0, pyparsing 3.3.2 to 3.3.3, pytz 2026.4 to 2026.6, virtualenv 21.14.2 to 21.15.6.
+- The lockfile drops from 197 to 186 packages. Removing 3.10 from the resolution collapses duplicates that were previously carried per-interpreter: numpy 2.2.6/2.4.6 to 2.4.6, pandas 2.3.3/3.0.3 to 3.0.3, scipy 1.15.3/1.17.1 to 1.17.1, scikit-learn 1.7.2/1.9.0 to 1.9.0. `backports-strenum`, `exceptiongroup` and `setuptools` leave the graph.
+- Docker images move from `python:3.10-slim` to `python:3.11-slim`.
+- The verification harness no longer hardcodes the Dockerfile's base image; it derives the expected `python:X.Y` from `requires-python` so the two cannot drift apart.
+
+### Fixed
+- `tox` could not run the suite on any interpreter. `starlette.testclient` requires `httpx` (or `httpx2`), and `httpx` was reachable only through the `airflow` extra, so `from fastapi.testclient import TestClient` raised during collection in an environment built from the `dev` extra alone. `httpx>=0.28.0` is now a declared dev dependency. The docs claimed `tox` covered 3.10-3.13, but it had never actually run.
+- `FraudExplainer` returned `{"Error": ...}` instead of an explanation for any non-XGBoost model. `shap.TreeExplainer` returns a `(n_samples, n_features, n_outputs)` array for a binary `RandomForestClassifier`, and the code sliced it as `[0]`, leaving one two-element array per feature; `float()` on those raised "truth value of an array with more than one element is ambiguous", which the surrounding `except` converted into an error dict. It now keeps the positive class. The XGBoost path uses native `pred_contribs` and was unaffected. Found while verifying SHAP against numba 0.68; the defect predates this release.
+
 ## [3.1.0] - 2026-10-08
 
 ### Added
