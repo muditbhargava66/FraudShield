@@ -89,7 +89,7 @@ psycopg2-binary==2.9.13 ; (platform_machine == 'arm64' and sys_platform == 'darw
     # via fraudshield
 pybind11==3.1.0 ; (platform_machine == 'arm64' and sys_platform == 'darwin') or sys_platform == 'linux' or sys_platform == 'win32'
     # via fraudshield
-pydantic==2.13.5 ; (platform_machine == 'arm64' and sys_platform == 'darwin') or sys_platform == 'linux' or sys_platform == 'win32'
+pydantic==2.14.4 ; (platform_machine == 'arm64' and sys_platform == 'darwin') or sys_platform == 'linux' or sys_platform == 'win32'
     # via
     #   fastapi
     #   fraudshield
