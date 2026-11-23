@@ -46,7 +46,7 @@ llvmlite==0.50.0 ; (platform_machine == 'arm64' and sys_platform == 'darwin') or
     # via
     #   numba
     #   shap
-matplotlib==3.10.9 ; (platform_machine == 'arm64' and sys_platform == 'darwin') or sys_platform == 'linux' or sys_platform == 'win32'
+matplotlib==3.11.2 ; (platform_machine == 'arm64' and sys_platform == 'darwin') or sys_platform == 'linux' or sys_platform == 'win32'
     # via
     #   fraudshield
     #   seaborn
